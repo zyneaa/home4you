@@ -13,8 +13,9 @@ export const globalErrorHandler: express.ErrorRequestHandler = (
     stack: err.stack,
     url: req.originalUrl,
     method: req.method,
-    // Include user ID or other relevant info if available from auth middleware
-    // user: req.user?.id
+    requestId: req.id,
+    userId: req.user?.id,
+    ip: req.ip,
   });
 
   let statusCode = res.statusCode !== 200 ? res.statusCode : 500;

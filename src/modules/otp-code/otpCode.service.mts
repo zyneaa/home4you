@@ -84,7 +84,7 @@ export const otpCodeService = {
   ): Promise<{ otp: string; expiresAt: Date }> {
     await OtpCode.deleteMany({ userId, type }, { session });
 
-    const expiryOffset = env.OPT_EXPIARY;
+    const expiryOffset = env.OTP_EXPIRY;
     const codeHash = await argon2.hash(otp);
     const expiresAt = new Date(Date.now() + expiryOffset);
 
@@ -160,7 +160,7 @@ export const otpCodeService = {
 
       if (otpCode.expiresAt < new Date()) {
         await OtpCode.deleteOne({ _id: otpCode._id }, { session });
-        throw new AppError("Code expired", 401);
+        throw new AppError("Invalid request", 401);
       }
 
       if (!otpCode.codeHash || !otpCode.expiresAt) {

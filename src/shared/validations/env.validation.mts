@@ -39,8 +39,8 @@ const envSchema = z.object({
   USER_SUB_WINDOW_SIZE: z.string().regex(/^\d+$/).transform(Number).default(5),
 
   // JWT
-  JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
-  JWT_REFRESH_SECRET: z.string().min(1, "JWT_SECRET is required"),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET is required"),
+  JWT_REFRESH_SECRET: z.string().min(32, "JWT_SECRET is required"),
 
   // Auth
   FAILED_LOGIN_ATTEMPT: z.string().regex(/^\d+$/).transform(Number).default(10),
@@ -54,7 +54,7 @@ const envSchema = z.object({
     .regex(/^\d+$/)
     .transform(Number)
     .default(30),
-  OPT_EXPIARY: z.string().regex(/^\d+$/).transform(Number).default(300000),
+  OTP_EXPIRY: z.string().regex(/^\d+$/).transform(Number).default(300_000),
   OTP_RESEND_WINDOW_SECONDS: z
     .string()
     .regex(/^\d+$/)
@@ -64,6 +64,8 @@ const envSchema = z.object({
   SMTP_PORT: z.string().regex(/^\d+$/).default("2525").transform(Number),
   SMTP_USER: z.string(),
   SMTP_PASS: z.string(),
+
+  HMAC_SECRET_KEY: z.string().min(32, "HMAC secret is required"),
 });
 
 const parseResult = envSchema.safeParse(process.env);

@@ -2,6 +2,7 @@ import { redisClient } from "@config";
 import { env } from "@shared/validations";
 import { logger, AppError } from "@utils";
 import type { NextFunction, RequestHandler } from "express";
+import rateLimit, { type RateLimitRequestHandler } from "express-rate-limit";
 
 const LUA_SCRIPT = `
   local key = KEYS[1]
@@ -195,16 +196,42 @@ const rateLimiter = async (
   }
 };
 
-export const globalRateLimit: RequestHandler = async (req, _, next) => {
+const memoryFallback: RateLimitRequestHandler = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+});
+
+export const globalRateLimit: RequestHandler = async (
+  req,
+  res,
+  next,
+): Promise<void | RateLimitRequestHandler> => {
   const key = `rate_limit:${req.ip}`;
   const WINDOW_SIZE = Number(env.GLOBAL_WINDOW_SIZE);
   const SUB_WINDOW_SIZE = Number(env.GLOBAL_SUB_WINDOW_SIZE);
   const LIMIT = Number(env.GLOBAL_LIMIT);
 
-  await rateLimiter(key, WINDOW_SIZE, SUB_WINDOW_SIZE, LIMIT, next);
+  try {
+    await rateLimiter(key, WINDOW_SIZE, SUB_WINDOW_SIZE, LIMIT, err => {
+      if (err) {
+        throw err;
+      }
+      next();
+    });
+  } catch (err) {
+    if (err instanceof AppError && err.statusCode === 429) {
+      next(err);
+    }
+    logger.error("Redis down, falling back to memory");
+    return memoryFallback(req, res, next) as RateLimitRequestHandler;
+  }
 };
 
-export const authUserRateLimit: RequestHandler = async (req, _, next) => {
+export const authUserRateLimit: RequestHandler = async (
+  req,
+  res,
+  next,
+): Promise<void | RateLimitRequestHandler> => {
   if (!req.user) {
     return next(new AppError("User not found", 404));
   }
@@ -213,5 +240,18 @@ export const authUserRateLimit: RequestHandler = async (req, _, next) => {
   const SUB_WINDOW_SIZE = Number(env.USER_SUB_WINDOW_SIZE);
   const LIMIT = Number(env.USER_LIMIT);
 
-  await rateLimiter(key, WINDOW_SIZE, SUB_WINDOW_SIZE, LIMIT, next);
+  try {
+    await rateLimiter(key, WINDOW_SIZE, SUB_WINDOW_SIZE, LIMIT, err => {
+      if (err) {
+        throw err;
+      }
+      next();
+    });
+  } catch (err) {
+    if (err instanceof AppError && err.statusCode === 429) {
+      return next(err);
+    }
+    logger.error("Redis down, falling back to memory");
+    return memoryFallback(req, res, next) as RateLimitRequestHandler;
+  }
 };

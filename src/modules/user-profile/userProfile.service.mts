@@ -14,7 +14,7 @@ export const userProfileService = {
       throw new AppError("No fields to update", 400);
     }
 
-    const updateData: any = {};
+    const updateData: Partial<UpdateUserProfileDto> = {};
 
     const allowedFields = [
       "fullName",

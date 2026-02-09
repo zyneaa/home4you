@@ -212,7 +212,7 @@ export const authService = {
     deviceId: string,
   ) {
     const session = await mongoose.startSession();
-    let newTokens;
+    let newTokens: { accessToken: string; refreshToken: string };
 
     try {
       await session.withTransaction(async () => {
