@@ -38,13 +38,15 @@ export const authController = {
     next: NextFunction,
   ) {
     try {
-      const message = await authService.register(req.body);
+      const message = await authService.register(
+        req.validated!.body as RegisterDto,
+      );
 
       res.status(201).json({
         message,
       });
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   },
 
@@ -57,8 +59,8 @@ export const authController = {
       const message = await authService.login(req.body);
 
       res.status(200).json({ message });
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   },
 
@@ -67,7 +69,7 @@ export const authController = {
     res: Response,
     next: NextFunction,
   ) {
-    let accessToken;
+    let accessToken: string | undefined;
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
@@ -82,8 +84,8 @@ export const authController = {
     try {
       await authService.logout(req.body, accessToken);
       res.status(204).send();
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   },
 
@@ -120,8 +122,8 @@ export const authController = {
           refreshToken: newTokens.refreshToken,
         });
       }
-    } catch (error) {
-      next(error);
+    } catch (err) {
+      next(err);
     }
   },
 

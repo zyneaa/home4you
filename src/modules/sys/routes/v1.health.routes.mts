@@ -7,6 +7,10 @@ const router = Router();
 
 router.get("/health", checkHealth);
 
+router.get("/time", (_req, res) =>
+  res.status(200).json({ serverTime: Date.now() }),
+);
+
 router.get("/readyz", (_req, res) => {
   const isReady = mongoose.connection.readyState === 1;
   if (isReady) {

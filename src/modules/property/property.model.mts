@@ -1,5 +1,4 @@
 import { model, Schema } from "mongoose";
-import type { InferSchemaType } from "mongoose";
 
 import { CurrencyType } from "./types/currencyType.type.mjs";
 import type { IProperty } from "./types/property.types.mjs";
@@ -17,8 +16,12 @@ const PropertySchema = new Schema<IProperty>(
     title: { type: String, default: "" },
 
     price: { type: Number, required: true },
-    currency: { type: CurrencyType, default: CurrencyType.KYAT },
-    transactionType: {
+    currency: {
+      type: String,
+      enum: Object.values(CurrencyType),
+      default: CurrencyType.KYAT,
+    },
+    propertyType: {
       type: String,
       required: true,
     },
@@ -38,18 +41,24 @@ const PropertySchema = new Schema<IProperty>(
     city: { type: String, default: "" },
     country: { type: String, default: "" },
 
-    bedrooms: { type: Number, default: "" },
-    bathrooms: { type: Number, default: "" },
-    numOfFloors: { type: Number, default: "" },
-    areaSqFt: { type: Number, default: "" },
+    bedrooms: { type: Number },
+    bathrooms: { type: Number },
+    numOfFloors: { type: Number },
+    areaSqFt: { type: Number },
 
-    category: { type: PropertyCatagory, default: PropertyCatagory.HOUSE },
+    category: {
+      type: String,
+      enum: Object.values(PropertyCatagory),
+      default: PropertyCatagory.HOUSE,
+    },
 
     photos: { type: [String] },
     amenities: { type: [String] },
 
     builtYear: { type: Number },
     furnished: { type: Number },
+
+    isAvailable: { type: Boolean, required: true },
   },
   {
     timestamps: true,
@@ -63,6 +72,9 @@ const PropertySchema = new Schema<IProperty>(
 );
 
 PropertySchema.index({ locationCoordinates: "2dsphere" });
+PropertySchema.index({
+  title: "text",
+  locationReadable: "text",
+});
 
-export type CreatedHome = InferSchemaType<typeof PropertySchema>;
-export const Home = model("Home", PropertySchema);
+export const Property = model<IProperty>("Property", PropertySchema);

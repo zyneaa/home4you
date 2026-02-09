@@ -11,7 +11,7 @@ export interface IProperty {
 
   price: number;
   currency?: CurrencyType;
-  transactionType: PropertyType;
+  propertyType: PropertyType;
 
   locationReadable: string;
   locationCoordinates?: {
@@ -34,4 +34,6 @@ export interface IProperty {
 
   builtYear?: number;
   furnished?: boolean;
+
+  isAvailable: boolean;
 }

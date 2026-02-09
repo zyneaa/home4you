@@ -49,6 +49,8 @@ services:
       SMTP_PORT: ${SMTP_PORT:-2525}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
     volumes:
       # Mount source code for hot reload
       - ./src:/app/src:ro
