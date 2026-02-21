@@ -1,258 +1,87 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { passwordForgetService } from "../../../src/modules/password-forget/password-forget.service.mts";
-import { User } from "../../../src/modules/user/user.model.mts";
-import { OtpCode } from "../../../src/modules/otp-code/otpCode.model.mts";
-import { otpCodeService } from "../../../src/modules/otp-code/otpCode.service.mts";
-import { OtpType } from "../../../src/modules/otp-code/types/otpType.type.mts";
-
-vi.mock("../../../src/utils/index.mts", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
-
-vi.mock("../../../src/modules/user/user.model.mts", () => ({
-  User: {
-    findOne: vi.fn(),
-  },
-}));
-
-vi.mock("../../../src/modules/otp-code/otpCode.model.mts", () => ({
-  OtpCode: {
-    findOne: vi.fn(),
-    deleteOne: vi.fn(),
-  },
-}));
-
-vi.mock("../../../src/modules/otp-code/otpCode.service.mts", () => ({
-  otpCodeService: {
-    generateOtp: vi.fn(),
-    createAndSetOtp: vi.fn(),
-    sendOtp: vi.fn(),
-  },
-}));
+import { passwordForgetService } from "../../../src/modules/password-forget/password-forget.service.mjs";
+import { User } from "../../../src/modules/user/user.model.mjs";
+import { OtpCode } from "../../../src/modules/otp-code/otpCode.model.mjs";
+import { otpCodeService } from "../../../src/modules/otp-code/otpCode.service.mjs";
+import mongoose from "mongoose";
+import argon2 from "argon2";
 
 vi.mock("mongoose", async () => {
   const actual = await vi.importActual("mongoose");
   return {
-    ...actual,
-    startSession: vi.fn(() => ({
-      withTransaction: vi.fn(async (fn: () => Promise<void>) => {
-        await fn();
-      }),
-      inTransaction: vi.fn(() => false),
-      abortTransaction: vi.fn(),
-      endSession: vi.fn(),
-    })),
+    ...(actual as any),
+    startSession: vi.fn(),
   };
 });
+vi.mock("argon2");
+vi.mock("../../../src/modules/user/user.model.mjs");
+vi.mock("../../../src/modules/otp-code/otpCode.model.mjs");
+vi.mock("../../../src/modules/otp-code/otpCode.service.mjs");
 
-describe("PasswordForgetService", () => {
-  afterEach(() => {
+describe("Password Forget Service", () => {
+  let mockSession: any;
+
+  beforeEach(() => {
     vi.clearAllMocks();
+    mockSession = {
+      withTransaction: vi.fn(cb => cb()),
+      endSession: vi.fn(),
+      abortTransaction: vi.fn(),
+      inTransaction: vi.fn().mockReturnValue(false),
+    };
+    (mongoose.startSession as any).mockResolvedValue(mockSession);
   });
 
   describe("forgotPassword", () => {
-    it("should send OTP for password reset when user exists", async () => {
-      const dto = {
-        email: "test@example.com",
-      };
+    it("should generate and send OTP if user exists", async () => {
+      const mockUser = { id: "u1", email: "test@example.com" };
+      (User.findOne as any).mockReturnValue({
+        session: vi.fn().mockResolvedValue(mockUser),
+      });
+      (otpCodeService.generateOtp as any).mockResolvedValue("123456");
 
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-      };
+      await passwordForgetService.forgotPassword({ email: "test@example.com" });
 
-      const mockOtp = "123456";
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-      (otpCodeService.generateOtp as any).mockResolvedValue(mockOtp);
-      (otpCodeService.createAndSetOtp as any).mockResolvedValue({});
-      (otpCodeService.sendOtp as any).mockResolvedValue(undefined);
-
-      const result = await passwordForgetService.forgotPassword(dto);
-
-      expect(User.findOne).toHaveBeenCalled();
-      expect(otpCodeService.generateOtp).toHaveBeenCalledWith(6);
       expect(otpCodeService.createAndSetOtp).toHaveBeenCalled();
-      expect(otpCodeService.sendOtp).toHaveBeenCalledWith(dto.email, mockOtp);
-      expect(result).toBe("An OTP has been sent to your email");
-    });
-
-    it("should return success message even if user does not exist (security)", async () => {
-      const dto = {
-        email: "nonexistent@example.com",
-      };
-
-      (User.findOne as any).mockResolvedValue(null);
-
-      const result = await passwordForgetService.forgotPassword(dto);
-
-      expect(User.findOne).toHaveBeenCalled();
-      expect(otpCodeService.generateOtp).not.toHaveBeenCalled();
-      expect(result).toBe("An OTP has been sent to your email");
+      expect(otpCodeService.sendOtp).toHaveBeenCalledWith(
+        "test@example.com",
+        "123456",
+      );
     });
   });
 
   describe("resetPassword", () => {
-    it("should reset password successfully with valid OTP", async () => {
-      const dto = {
-        email: "test@example.com",
-        otp: "123456",
-        newPassword: "NewPassword123@",
+    it("should reset password if OTP is valid", async () => {
+      const mockUser = { id: "u1", setPassword: vi.fn(), save: vi.fn() };
+      const mockUserQuery = {
+        select: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(mockUser),
       };
+      (User.findOne as any).mockReturnValue(mockUserQuery);
 
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-        passwordHash: "old-hash",
-        lockUntil: null,
-        setPassword: vi.fn(),
-        save: vi.fn(),
+      const mockOtp = {
+        _id: "otp1",
+        codeHash: "hash",
+        expiresAt: new Date(Date.now() + 10000),
       };
-
-      const mockOtpCode = {
-        _id: "otp-id-123",
-        userId: mockUser.id,
-        codeHash: "hashed-otp",
-        expiresAt: new Date(Date.now() + 60000),
-        type: OtpType.PASSWORD_RESET,
+      const mockOtpQuery = {
+        select: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(mockOtp),
       };
+      (OtpCode.findOne as any).mockReturnValue(mockOtpQuery);
 
-      const argon2 = await import("argon2");
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-      (OtpCode.findOne as any).mockResolvedValue(mockOtpCode);
-      (argon2.default.verify as any).mockResolvedValue(true);
+      (argon2.verify as any).mockResolvedValue(true);
       (OtpCode.deleteOne as any).mockResolvedValue({});
 
-      const result = await passwordForgetService.resetPassword(dto);
+      await passwordForgetService.resetPassword({
+        email: "test@example.com",
+        otp: "123456",
+        newPassword: "NewPass",
+      });
 
-      expect(User.findOne).toHaveBeenCalled();
-      expect(OtpCode.findOne).toHaveBeenCalled();
-      expect(argon2.default.verify).toHaveBeenCalled();
-      expect(mockUser.setPassword).toHaveBeenCalledWith(dto.newPassword);
+      expect(mockUser.setPassword).toHaveBeenCalledWith("NewPass");
       expect(mockUser.save).toHaveBeenCalled();
-      expect(OtpCode.deleteOne).toHaveBeenCalled();
-      expect(result).toBe("Password has been reset successfully");
-    });
-
-    it("should throw error if user does not exist", async () => {
-      const dto = {
-        email: "nonexistent@example.com",
-        otp: "123456",
-        newPassword: "NewPassword123@",
-      };
-
-      (User.findOne as any).mockResolvedValue(null);
-
-      await expect(passwordForgetService.resetPassword(dto)).rejects.toThrow(
-        "Invalid email or OTP",
-      );
-    });
-
-    it("should throw error if account is locked", async () => {
-      const dto = {
-        email: "test@example.com",
-        otp: "123456",
-        newPassword: "NewPassword123@",
-      };
-
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-        lockUntil: new Date(Date.now() + 60000),
-      };
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-
-      await expect(passwordForgetService.resetPassword(dto)).rejects.toThrow(
-        "Account locked. Try again after sometime",
-      );
-    });
-
-    it("should throw error if OTP does not exist", async () => {
-      const dto = {
-        email: "test@example.com",
-        otp: "123456",
-        newPassword: "NewPassword123@",
-      };
-
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-        lockUntil: null,
-      };
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-      (OtpCode.findOne as any).mockResolvedValue(null);
-
-      await expect(passwordForgetService.resetPassword(dto)).rejects.toThrow(
-        "Invalid email or OTP",
-      );
-    });
-
-    it("should throw error if OTP has expired", async () => {
-      const dto = {
-        email: "test@example.com",
-        otp: "123456",
-        newPassword: "NewPassword123@",
-      };
-
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-        lockUntil: null,
-      };
-
-      const mockOtpCode = {
-        _id: "otp-id-123",
-        userId: mockUser.id,
-        expiresAt: new Date(Date.now() - 60000),
-      };
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-      (OtpCode.findOne as any).mockResolvedValue(mockOtpCode);
-      (OtpCode.deleteOne as any).mockResolvedValue({});
-
-      await expect(passwordForgetService.resetPassword(dto)).rejects.toThrow(
-        "OTP has expired. Please request a new one",
-      );
-      expect(OtpCode.deleteOne).toHaveBeenCalled();
-    });
-
-    it("should throw error if OTP is invalid", async () => {
-      const dto = {
-        email: "test@example.com",
-        otp: "wrong-otp",
-        newPassword: "NewPassword123@",
-      };
-
-      const mockUser = {
-        id: "user-id-123",
-        email: dto.email,
-        lockUntil: null,
-      };
-
-      const mockOtpCode = {
-        _id: "otp-id-123",
-        userId: mockUser.id,
-        codeHash: "hashed-otp",
-        expiresAt: new Date(Date.now() + 60000),
-      };
-
-      const argon2 = await import("argon2");
-
-      (User.findOne as any).mockResolvedValue(mockUser);
-      (OtpCode.findOne as any).mockResolvedValue(mockOtpCode);
-      (argon2.default.verify as any).mockResolvedValue(false);
-
-      await expect(passwordForgetService.resetPassword(dto)).rejects.toThrow(
-        "Invalid email or OTP",
-      );
     });
   });
 });

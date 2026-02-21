@@ -18,6 +18,8 @@ export const resetPasswordDtoSchema = z.object({
         "Password must include at least one capital letter, one special character, and one number",
       ),
   }),
+  query: z.looseObject({}).optional(),
+  params: z.looseObject({}).optional(),
 });
 
 export type ResetPasswordDto = z.infer<typeof resetPasswordDtoSchema>["body"];

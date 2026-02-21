@@ -11,6 +11,7 @@ export const updateUserDtoSchema = z.object({
   params: z.object({
     id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID format"),
   }),
+  query: z.looseObject({}).optional(),
 });
 
 export type UpdateUserDto = z.infer<typeof updateUserDtoSchema>["body"];

@@ -18,6 +18,8 @@ export const verifyOtpDtoSchema = z.object({
       .min(1, "Device ID is required.")
       .regex(uuidRegex, "Device ID must be a valid UUID v4 format."),
   }),
+  query: z.looseObject({}).optional(),
+  params: z.looseObject({}).optional(),
 });
 
 export type VerifyOtpDto = z.infer<typeof verifyOtpDtoSchema>["body"];

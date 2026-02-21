@@ -1,5 +1,6 @@
 import { CurrencyType } from "@modules/property/types/currencyType.type.mjs";
 import { PropertyCatagory } from "@modules/property/types/propertyCatagory.type.mjs";
+import { PropertyType } from "@modules/property/types/propertyType.type.mjs";
 import { z } from "zod";
 
 export const geoPointSchema = z.object({
@@ -16,6 +17,8 @@ export const propertyBaseSchema = z.object({
   price: z.number().positive(),
 
   currency: z.enum(CurrencyType).optional(),
+
+  propertyType: z.enum(PropertyType),
 
   transactionType: z.string().min(1),
 

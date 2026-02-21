@@ -4,6 +4,8 @@ import { z } from "zod";
 export const createPropertyDtoSchema = z
   .object({
     body: propertyBaseSchema,
+    query: z.looseObject({}).optional(),
+    params: z.looseObject({}).optional(),
   })
   .strict();
 

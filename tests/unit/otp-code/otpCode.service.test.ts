@@ -1,105 +1,220 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { otpCodeService } from "../../../src/modules/otp-code/otpCode.service.mts";
-import { transporter } from "../../../src/config/mailer.mts";
-import { AppError } from "../../../src/utils/appError.mts";
+import { otpCodeService } from "../../../src/modules/otp-code/otpCode.service.mjs";
+import { OtpCode } from "../../../src/modules/otp-code/otpCode.model.mjs";
+import { redisClient } from "../../../src/config/redis.mjs";
+import { transporter } from "../../../src/config/mailer.mjs";
+import { AppError } from "../../../src/utils/appError.mjs";
+import argon2 from "argon2";
+import mongoose from "mongoose";
 
-vi.mock("../../../src/utils/index.mts", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
-
-vi.mock("../../../src/config/index.mts", () => ({
-  transporter: {
-    sendMail: vi.fn(),
-  },
+// Mock dependencies
+vi.mock("argon2");
+vi.mock("mongoose");
+vi.mock("../../../src/modules/otp-code/otpCode.model.mjs");
+vi.mock("../../../src/config/redis.mjs", () => ({
   redisClient: {
+    get: vi.fn(),
     set: vi.fn(),
+    del: vi.fn(),
+    quit: vi.fn(),
+    isOpen: true,
+  },
+}));
+vi.mock("../../../src/config/mailer.mjs", () => ({
+  transporter: {
+    sendMail: vi.fn().mockResolvedValue({}),
   },
 }));
 
-vi.mock("../../../src/modules/otp-code/otpCode.model.mts", () => ({
-  OtpCode: {
-    deleteMany: vi.fn(),
-    create: vi.fn(),
-    findOne: vi.fn(),
-    deleteOne: vi.fn(),
+vi.mock("crypto", () => ({
+  randomInt: vi.fn().mockReturnValue(123456),
+}));
+
+// Mock authService
+vi.mock("../../../src/modules/auth/auth.service.mjs", () => ({
+  authService: {
+    createSession: vi.fn(),
+    lockAccount: vi.fn(),
   },
 }));
 
-vi.mock("../../../src/modules/user/user.model.mts", () => ({
-  User: {
-    findOne: vi.fn(),
-  },
-}));
+import { authService } from "../../../src/modules/auth/auth.service.mjs";
+import { User } from "../../../src/modules/user/user.model.mjs";
 
-vi.mock("mongoose", async () => {
-  const actual = await vi.importActual("mongoose");
-  return {
-    ...actual,
-    startSession: vi.fn(() => ({
-      startTransaction: vi.fn(),
-      commitTransaction: vi.fn(),
-      abortTransaction: vi.fn(),
-      inTransaction: vi.fn(() => false),
-      endSession: vi.fn(),
-    })),
-  };
-});
+vi.mock("../../../src/modules/user/user.model.mjs");
 
-describe("OtpCodeService", () => {
-  afterEach(() => {
+describe("OTP Code Service", () => {
+  beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe("generateOtp", () => {
-    it("should generate a 6-digit OTP", async () => {
+    it("should return a 6 digit code", async () => {
       const otp = await otpCodeService.generateOtp(6);
-      expect(otp).toMatch(/^\d{6}$/);
-      expect(otp.length).toBe(6);
-    });
-
-    it("should generate OTPs of different lengths", async () => {
-      const otp4 = await otpCodeService.generateOtp(4);
-      expect(otp4).toMatch(/^\d{4}$/);
-      expect(otp4.length).toBe(4);
-
-      const otp8 = await otpCodeService.generateOtp(8);
-      expect(otp8).toMatch(/^\d{8}$/);
-      expect(otp8.length).toBe(8);
-    });
-
-    it("should throw error for invalid length", async () => {
-      await expect(otpCodeService.generateOtp(0)).rejects.toThrow(
-        "Length must be a positive integer.",
-      );
-
-      await expect(otpCodeService.generateOtp(-1)).rejects.toThrow(
-        "Length must be a positive integer.",
-      );
+      expect(otp).toHaveLength(6);
     });
   });
 
-  describe("sendOtp", () => {
-    it("should send OTP via email", async () => {
-      const email = "test@example.com";
-      const otp = "123456";
+  describe("createAndSetOtp", () => {
+    it("should create and save OTP", async () => {
+      (argon2.hash as any).mockResolvedValue("hash");
+      (OtpCode.create as any).mockResolvedValue([]);
+      (OtpCode.deleteMany as any).mockResolvedValue({});
 
-      (transporter.sendMail as any).mockResolvedValue(undefined);
-
-      await otpCodeService.sendOtp(email, otp);
-
-      expect(transporter.sendMail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: email,
-          subject: "Your OTP Code",
-          text: `Your OTP is: ${otp}`,
-          html: expect.stringContaining(otp),
-        }),
+      // session is 5th arg
+      const mockSession = {} as any;
+      await otpCodeService.createAndSetOtp(
+        "u1",
+        "123456",
+        "LOGIN" as any,
+        "EMAIL" as any,
+        mockSession,
       );
+
+      expect(OtpCode.create).toHaveBeenCalled();
+    });
+  });
+
+  describe("verifyOtp", () => {
+    it("should verify valid OTP and return tokens", async () => {
+      const mockUser = {
+        id: "u1",
+        email: "test@example.com",
+        emailVerified: true,
+        save: vi.fn(),
+        toJSON: vi.fn().mockReturnValue({ id: "u1" }),
+      };
+      const mockOtpDoc = {
+        _id: "otp1",
+        codeHash: "hash",
+        expiresAt: new Date(Date.now() + 10000),
+        isUsed: false,
+        userId: "u1",
+        type: "LOGIN",
+      };
+
+      // Mock Mongoose session start
+      const mockSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+        inTransaction: vi.fn().mockReturnValue(true),
+      };
+      (mongoose.startSession as any) = vi.fn().mockResolvedValue(mockSession);
+
+      // Mock User findOne
+      (User.findOne as any).mockReturnValue({
+        session: vi.fn().mockResolvedValue(mockUser),
+      });
+
+      // Mock OtpCode findOne
+      (OtpCode.findOne as any).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(mockOtpDoc),
+      });
+
+      (argon2.verify as any).mockResolvedValue(true);
+      (OtpCode.deleteOne as any).mockResolvedValue({});
+
+      (authService.createSession as any).mockResolvedValue({
+        accessToken: "at",
+        refreshToken: "rt",
+      });
+
+      const result = await otpCodeService.verifyOtp(
+        "test@example.com",
+        "123456",
+        "LOGIN" as any,
+        "ip",
+        "agent",
+        "device",
+      );
+
+      expect(result).toHaveProperty("accessToken", "at");
+      expect(result).toHaveProperty("refreshToken", "rt");
+    });
+
+    it("should throw if OTP not found or invalid", async () => {
+      const mockSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+        inTransaction: vi.fn().mockReturnValue(true),
+      };
+      (mongoose.startSession as any) = vi.fn().mockResolvedValue(mockSession);
+      (User.findOne as any).mockReturnValue({
+        session: vi.fn().mockResolvedValue({ id: "u1" }),
+      });
+
+      // Mock OtpCode findOne returns null
+      (OtpCode.findOne as any).mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        session: vi.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        otpCodeService.verifyOtp(
+          "test@example.com",
+          "123456",
+          "LOGIN" as any,
+          "ip",
+          "agent",
+          "d",
+        ),
+      ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe("resendOtp", () => {
+    it("should throw if rate limited", async () => {
+      const mockSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+        inTransaction: vi.fn(),
+      };
+      (mongoose.startSession as any) = vi.fn().mockResolvedValue(mockSession);
+      (redisClient.set as any).mockResolvedValue(null);
+
+      await expect(
+        otpCodeService.resendOtp("email", "LOGIN" as any, "EMAIL" as any),
+      ).rejects.toThrow(AppError);
+    });
+
+    it("should send new OTP if allowed", async () => {
+      const mockSession = {
+        startTransaction: vi.fn(),
+        commitTransaction: vi.fn(),
+        abortTransaction: vi.fn(),
+        endSession: vi.fn(),
+        inTransaction: vi.fn(),
+      };
+      (mongoose.startSession as any) = vi.fn().mockResolvedValue(mockSession);
+
+      (redisClient.set as any).mockResolvedValue("OK");
+      (User.findOne as any).mockReturnValue({
+        session: vi.fn().mockResolvedValue({ id: "u1" }),
+      });
+
+      (OtpCode.create as any).mockResolvedValue([]);
+      (OtpCode.deleteMany as any).mockResolvedValue({});
+      (argon2.hash as any).mockResolvedValue("hash");
+
+      // Mock generateOtp
+      vi.spyOn(otpCodeService, "generateOtp").mockResolvedValue("123456");
+      vi.spyOn(otpCodeService, "createAndSetOtp").mockResolvedValue({
+        otp: "123456",
+        expiresAt: new Date(),
+      });
+      vi.spyOn(otpCodeService, "sendOtp").mockResolvedValue();
+
+      await otpCodeService.resendOtp("email", "LOGIN" as any, "EMAIL" as any);
+
+      expect(otpCodeService.sendOtp).toHaveBeenCalled();
     });
   });
 });

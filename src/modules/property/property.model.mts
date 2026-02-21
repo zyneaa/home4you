@@ -3,6 +3,7 @@ import { model, Schema } from "mongoose";
 import { CurrencyType } from "./types/currencyType.type.mjs";
 import type { IProperty } from "./types/property.types.mjs";
 import { PropertyCatagory } from "./types/propertyCatagory.type.mjs";
+import { PropertyType } from "./types/propertyType.type.mjs";
 
 const PropertySchema = new Schema<IProperty>(
   {
@@ -23,6 +24,7 @@ const PropertySchema = new Schema<IProperty>(
     },
     propertyType: {
       type: String,
+      enum: Object.values(PropertyType),
       required: true,
     },
 
