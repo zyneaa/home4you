@@ -33,6 +33,8 @@ const registerBodySchema = z.discriminatedUnion("channel", [
 
 export const registerDtoSchema = z.object({
   body: registerBodySchema,
+  query: z.looseObject({}).optional(),
+  params: z.looseObject({}).optional(),
 });
 
 export type RegisterDto = z.infer<typeof registerBodySchema>;

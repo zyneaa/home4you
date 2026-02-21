@@ -56,7 +56,7 @@ export const authController = {
     next: NextFunction,
   ) {
     try {
-      const message = await authService.login(req.body);
+      const message = await authService.login(req.validated!.body as LoginDto);
 
       res.status(200).json({ message });
     } catch (err) {
@@ -82,7 +82,7 @@ export const authController = {
     }
 
     try {
-      await authService.logout(req.body, accessToken);
+      await authService.logout(req.validated!.body as LogoutDto, accessToken);
       res.status(204).send();
     } catch (err) {
       next(err);
@@ -111,11 +111,12 @@ export const authController = {
         const ip = cleanIp(normalizeIp(rawIp));
         const userAgent = req.headers["user-agent"] || "unknown";
 
+        const validatedBody = req.validated!.body as RefreshDto;
         const newTokens = await authService.refresh(
           refreshToken,
           ip,
           userAgent,
-          req.body.deviceId,
+          validatedBody.deviceId,
         );
         res.status(200).json({
           accessToken: newTokens.accessToken,
@@ -138,14 +139,15 @@ export const authController = {
     const userAgent = req.headers["user-agent"] || "unknown";
 
     try {
+      const validatedBody = req.validated!.body as VerifyOtpDto;
       const { refreshToken, accessToken, user } =
         await otpCodeService.verifyOtp(
-          req.body.email,
-          req.body.otp,
+          validatedBody.email,
+          validatedBody.otp,
           type,
           ip,
           userAgent,
-          req.body.deviceId,
+          validatedBody.deviceId,
         );
       res.status(200).json({
         accessToken,
@@ -179,10 +181,11 @@ export const authController = {
     next: NextFunction,
   ) {
     try {
+      const validatedBody = req.validated!.body as SendOtpDto;
       await otpCodeService.resendOtp(
-        req.body.email,
-        req.body.type,
-        req.body.channel,
+        validatedBody.email,
+        validatedBody.type,
+        validatedBody.channel,
       );
       res.status(200).json({ message: "OTP has been sent" });
     } catch (e) {

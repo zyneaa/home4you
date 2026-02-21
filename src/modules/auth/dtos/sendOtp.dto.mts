@@ -8,6 +8,8 @@ export const sendOtpDtoSchema = z.object({
     type: z.enum(OtpType),
     channel: z.enum(Channel),
   }),
+  query: z.looseObject({}).optional(),
+  params: z.looseObject({}).optional(),
 });
 
 export type SendOtpDto = z.infer<typeof sendOtpDtoSchema>["body"];

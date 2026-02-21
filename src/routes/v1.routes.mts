@@ -28,6 +28,7 @@ routerV1.use(
   v1UserRoutes,
 );
 routerV1.use(
+  "/user-profile",
   requestSigningGuard,
   protect,
   authUserRateLimit,

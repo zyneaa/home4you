@@ -110,19 +110,15 @@ export const propertyService = {
       .limit(safeLimit);
   },
 
-  async updateProperty(
-    userId: string,
-    propertyId: string,
-    updateData: UpdatePropertyDto,
-  ) {
-    const property = await Property.findById(propertyId);
+  async updateProperty(userId: string, updateData: UpdatePropertyDto) {
+    const property = await Property.findById(updateData.propertyId);
     if (!property) {
       throw new AppError("No property found", 404);
     }
     if (property.listedBy.toString() !== userId) {
       throw new AppError("Not authorized to modify this property", 403);
     }
-    return Property.findByIdAndUpdate(propertyId, updateData, {
+    return Property.findByIdAndUpdate(updateData.propertyId, updateData, {
       new: true,
       runValidators: true,
     });

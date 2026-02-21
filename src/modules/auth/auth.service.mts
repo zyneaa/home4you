@@ -241,7 +241,6 @@ export const authService = {
             { revokedAt: new Date(), revokedReason: "TOKEN_REUSE_DETECTED" },
             { session },
           );
-          await session.commitTransaction();
 
           logger.error(
             `Token reuse/mismatch detected for user ${userId}. Device: ${deviceId}. All sessions revoked.`,
@@ -259,11 +258,15 @@ export const authService = {
           // warn, but allow rotation for mobile apps (users change IP/network frequently).
         }
 
-        await AuthSession.updateOne(
-          { _id: tokenFromDb._id },
+        const rotationResult = await AuthSession.updateOne(
+          { _id: tokenFromDb._id, revokedAt: null },
           { revokedAt: new Date(), revokedReason: "ROTATED" },
           { session },
         );
+
+        if (rotationResult.modifiedCount === 0) {
+          throw new AppError("Refresh token reuse detected", 401);
+        }
 
         const user = await User.findById(userId).session(session);
         if (!user) {

@@ -8,6 +8,8 @@ const geoSearchSchema = z.object({
 
 export const geoSearchDtoSchema = z.object({
   query: geoSearchSchema,
+  body: z.looseObject({}).optional(),
+  params: z.looseObject({}).optional(),
 });
 
 export type GeoSearchDto = z.infer<typeof geoSearchSchema>;

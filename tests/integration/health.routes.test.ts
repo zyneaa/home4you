@@ -1,85 +1,53 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Request, Response } from "express";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import request from "supertest";
+import app from "../../src/app.mjs";
 import mongoose from "mongoose";
+import { redisClient } from "../../src/config/redis.mjs";
 
-import { checkHealth } from "../../src/modules/health/health.controller.mts";
-import { healthCheckRoutes } from "../../src/modules/health/health.routes.mts";
+// Mock dependencies
+vi.mock("../../src/config/redis.mjs");
 
-vi.mock("../../src/utils/index.mts", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
+// Mock HMAC for health check? Usually health check is public and rate limited but maybe not HMAC protected?
+// Looking at v1.routes.mts:
+// routerV1.use("/sys", globalRateLimit, v1SysRoutes);
+// It is NOT protected by requestSigningGuard (which is used for auth/password/user/property)
+// So we don't need to mock HMAC here.
 
-vi.mock("../../src/config/index.mts", () => ({
-  redisClient: {
-    isOpen: true,
-    options: {
-      socket: {
-        connectTimeout: 5000,
-      },
-    },
-  },
-}));
-
-describe("Health Routes Integration", () => {
+describe("Health Routes Integration [Supertest]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe("GET /health", () => {
-    it("should return health status successfully", async () => {
-      const req = {} as Request;
-      const res = {
-        status: vi.fn().mockReturnThis(),
-        json: vi.fn(),
-      } as unknown as Response;
-
-      // Mock mongoose connection as connected
+  describe("GET /api/v1/sys/health", () => {
+    it("should return 200 OK when all services are healthy", async () => {
+      // Mock Mongoose connected
       Object.defineProperty(mongoose.connection, "readyState", {
-        value: 1, // connected
-        writable: true,
+        value: 1,
         configurable: true,
       });
 
-      await checkHealth(req, res);
+      // Mock Redis connected
+      (redisClient as any).isOpen = true;
 
-      expect(res.status).toHaveBeenCalled();
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: expect.any(String),
-          dependencies: expect.objectContaining({
-            mongo: expect.any(String),
-            redis: expect.any(String),
-          }),
-          uptime: expect.any(Number),
-          timestamp: expect.any(Number),
-        }),
-      );
+      const res = await request(app).get("/api/v1/sys/health");
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("OK");
+      expect(res.body.dependencies.mongo).toBe("connected");
+      expect(res.body.dependencies.redis).toBe("connected");
     });
-  });
 
-  describe("GET /readyz", () => {
-    it("should return ready status when database is connected", async () => {
-      // Mock the router handler
-      const router = healthCheckRoutes;
-
-      // Mock mongoose connection as connected
+    it("should return 503 if any service is down", async () => {
+      // Mock Mongoose disconnected
       Object.defineProperty(mongoose.connection, "readyState", {
-        value: 1, // connected
-        writable: true,
+        value: 0,
         configurable: true,
       });
 
-      // Since we can't directly test the router handler,
-      // we verify that the route exists by checking the router stack
-      expect(router).toBeDefined();
+      const res = await request(app).get("/api/v1/sys/health");
+
+      expect(res.status).toBe(503);
+      expect(res.body.status).toBe("ERROR");
     });
   });
 });

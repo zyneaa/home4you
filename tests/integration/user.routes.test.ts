@@ -1,91 +1,94 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Request, Response, NextFunction } from "express";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import request from "supertest";
+import app from "../../src/app.mjs";
+import { userService } from "../../src/modules/user/user.service.mjs";
+import { jwtToken } from "../../src/utils/index.mjs";
+import { redisClient } from "../../src/config/redis.mjs";
+import { User } from "../../src/modules/user/user.model.mjs";
 
-import { validateDto } from "../../src/middlewares/validation.middleware.mts";
-import { updateUserDtoSchema } from "../../src/modules/user/dtos/update-user.dto.mts";
-import { userRoutes } from "../../src/modules/user/user.routes.mts";
-import { AppError } from "../../src/utils/appError.mts";
+// Mock Services
+vi.mock("../../src/modules/user/user.service.mjs");
 
-vi.mock("../../src/utils/index.mts", () => ({
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
+// Mock Middleware dependencies for Auth
+vi.mock("../../src/utils/index.mjs", async () => {
+  const actual = await vi.importActual("../../src/utils/index.mjs");
+  return {
+    ...(actual as any),
+    jwtToken: {
+      verify: vi.fn(),
+    },
+  };
+});
+vi.mock("../../src/config/redis.mjs", () => ({
+  redisClient: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    isOpen: true,
   },
 }));
+vi.mock("../../src/modules/user/user.model.mjs");
 
-vi.mock("../../src/modules/user/user.service.mts", () => ({
-  userService: {
-    getUserById: vi.fn(),
-    updateUser: vi.fn(),
-    deleteUser: vi.fn(),
-  },
+// Mock HMAC
+vi.mock("../../src/middlewares/signHMAC.middleware.mjs", () => ({
+  requestSigningGuard: (req, res, next) => next(),
 }));
 
-describe("User Routes Integration", () => {
+describe("User Routes Integration [Supertest]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe("PATCH /:id", () => {
-    it("should validate update user request with valid data", async () => {
-      const req = {
-        body: {
-          fullName: "Updated Name",
-          email: "updated@example.com",
-        },
-        query: {},
-        params: {
-          id: "user-id-123",
-        },
-      } as any;
-      const res = {
-        status: vi.fn().mockReturnThis(),
-        json: vi.fn(),
-      } as unknown as Response;
-      const next = vi.fn() as NextFunction;
-
-      await validateDto(updateUserDtoSchema)(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-      expect(next).toHaveBeenCalledWith();
+    // Setup default auth success
+    (jwtToken.verify as any).mockReturnValue({
+      userId: "user123",
+      jti: "valid",
     });
-
-    it("should reject update user request with invalid email", async () => {
-      const req = {
-        body: {
-          fullName: "Updated Name",
-          email: "invalid-email",
-        },
-        query: {},
-        params: {
-          id: "user-id-123",
-        },
-      } as any;
-      const res = {
-        status: vi.fn().mockReturnThis(),
-        json: vi.fn(),
-      } as unknown as Response;
-      const next = vi.fn() as NextFunction;
-
-      await validateDto(updateUserDtoSchema)(req, res, next);
-
-      expect(next).toHaveBeenCalledWith(expect.any(AppError));
-      expect(next).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusCode: 400,
-        }),
-      );
+    (redisClient.get as any).mockResolvedValue(null); // not blacklisted
+    (User.findById as any).mockResolvedValue({
+      id: "user123",
+      emailVerified: true,
     });
   });
 
-  describe("Route definitions", () => {
-    it("should have user routes defined", () => {
-      expect(userRoutes).toBeDefined();
+  describe("GET /api/v1/user/:id", () => {
+    it("should return user details", async () => {
+      const mockUser = { id: "user123", userName: "test" };
+      (userService.getUserById as any).mockResolvedValue({
+        toJSON: () => mockUser,
+      });
+
+      const res = await request(app)
+        .get("/api/v1/user/user123")
+        .set("Authorization", "Bearer valid_token");
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockUser);
+    });
+  });
+
+  describe("PATCH /api/v1/user/:id", () => {
+    it("should update user details", async () => {
+      const mockUser = { id: "user123", userName: "updated" };
+      (userService.updateUser as any).mockResolvedValue({
+        toJSON: () => mockUser,
+      });
+
+      const res = await request(app)
+        .patch("/api/v1/user/user123")
+        .set("Authorization", "Bearer valid_token")
+        .send({ userName: "updated" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(mockUser);
+    });
+
+    it("should return 400 for invalid email in update", async () => {
+      const res = await request(app)
+        .patch("/api/v1/user/user123")
+        .set("Authorization", "Bearer valid_token")
+        .send({ email: "invalid-email" });
+
+      expect(res.status).toBe(400);
     });
   });
 });
