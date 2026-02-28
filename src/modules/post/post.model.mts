@@ -16,6 +16,9 @@ const PostSchema = new Schema<IPost>(
       required: true,
       index: true,
     },
+    description: {
+      type: String,
+    },
     likeCount: {
       type: Number,
       required: true,

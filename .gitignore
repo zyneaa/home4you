@@ -146,3 +146,4 @@ dump.rdb
 .DS_Store
 temp.txt
 xh/
+.postman/

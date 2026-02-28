@@ -1,6 +1,7 @@
 import { authUserRateLimit, globalRateLimit, protect } from "@middlewares";
 import { v1AuthRoutes } from "@modules/auth/index.mjs";
 import { v1passwordForgetRoutes } from "@modules/password-forget/index.mjs";
+import { v1PostRoutes } from "@modules/post/index.mjs";
 import { v1PropertyRoutes } from "@modules/property/index.mjs";
 import { v1SysRoutes } from "@modules/sys/index.mjs";
 import { v1UserRoutes } from "@modules/user/index.mjs";
@@ -40,4 +41,11 @@ routerV1.use(
   protect,
   authUserRateLimit,
   v1PropertyRoutes,
+);
+routerV1.use(
+  "/post",
+  requestSigningGuard,
+  protect,
+  authUserRateLimit,
+  v1PostRoutes,
 );

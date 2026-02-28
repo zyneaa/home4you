@@ -1,0 +1,1603 @@
+{
+  "info": {
+    "_postman_id": "c180d66f-3420-486c-be77-c83d325b9fc2",
+    "name": "Home4You API",
+    "description": "API collection for Home4You - a real estate property listing platform.\n\n## Authentication\n- **Bearer Token**: Protected endpoints require `Authorization: Bearer <token>` header\n- **HMAC Signing**: All non-system endpoints require HMAC signature headers:\n  - `x-signature`: HMAC-SHA256 signature of the payload\n  - `x-timestamp`: Unix timestamp of the request\n  - `x-nonce`: Unique nonce for replay protection\n\n## Base URL\nAll endpoints are prefixed with `/api/v1`\n\n## Rate Limiting\n- Public endpoints: Lower rate limits\n- Authenticated endpoints: Higher rate limits",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "id": "cba443f5-07d7-4e0a-8ab0-18ddde21bc99",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sys/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sys",
+                "health"
+              ]
+            },
+            "description": "Check if the API server is running and healthy."
+          },
+          "response": []
+        },
+        {
+          "name": "Server Time",
+          "id": "f10e8de1-c73d-4f94-819c-7bb25452fe0b",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sys/time",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sys",
+                "time"
+              ]
+            },
+            "description": "Get the current server time."
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness Check",
+          "id": "f48b4090-1b3a-4eaf-8bb2-76969a81749f",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sys/readyz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "sys",
+                "readyz"
+              ]
+            },
+            "description": "Check if the server is ready to accept requests (all dependencies connected)."
+          },
+          "response": []
+        }
+      ],
+      "id": "bc6cb7ba-fcaa-48dd-84d7-1d21fcbf565a",
+      "description": "System health and status endpoints. These are public and do not require authentication or HMAC signing."
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "c70b72c0-b3f3-4d61-8369-08b716b177ac",
+                "exec": [
+                  "const crypto = require('crypto-js');",
+                  "",
+                  "const secret = pm.environment.get(\"HMAC_SECRET_KEY\"); ",
+                  "console.log(secret);",
+                  "",
+                  "const timestamp = Date.now().toString();",
+                  "const nonce = Math.random().toString(36).substring(2, 15);",
+                  "",
+                  "let payload = \"\";",
+                  "if (pm.request.method === 'GET') {",
+                  "    const fullUrl = pm.request.url.toString();",
+                  "    const resolvedUrl = pm.variables.replaceIn(fullUrl);",
+                  "    const urlObj = new URL(resolvedUrl);",
+                  "    payload = urlObj.pathname + urlObj.search;",
+                  "} else {",
+                  "    const rawBody = pm.request.body.toString();",
+                  "    payload = pm.variables.replaceIn(rawBody);",
+                  "}",
+                  "",
+                  "const message = `${timestamp}:${nonce}:${payload}`; // Make sure order is right",
+                  "console.log(message);",
+                  "",
+                  "const hash = crypto.HmacSHA256(message, secret);",
+                  "const signature = crypto.enc.Hex.stringify(hash);",
+                  "",
+                  "pm.variables.set(\"computed_sig\", signature);",
+                  "pm.variables.set(\"computed_ts\", timestamp);",
+                  "pm.variables.set(\"computed_nonce\", nonce);``",
+                  "",
+                  "console.log(\"Payload signed:\", message);",
+                  "console.log(\"Signature:\", signature);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "1915291f-0ee7-4ad7-83a2-29a8a9a2b8e1",
+                "exec": [
+                  "const activeEnvName = pm.environment.name;",
+                  "const TARGET_ENV_NAME = \"\";",
+                  "",
+                  "if (TARGET_ENV_NAME && activeEnvName !== TARGET_ENV_NAME) {",
+                  "    console.warn(`[SKIP] Tokens were not updated. Current active environment is '${activeEnvName}', but the script is set to only run on '${TARGET_ENV_NAME}'.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 200 || pm.response.code >= 300) {",
+                  "    console.error(`Request failed with status: ${pm.response.code}. Skipping token update.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "let jsonData;",
+                  "try {",
+                  "    jsonData = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test(\"Response is valid JSON\", false);",
+                  "    console.error(\"Failed to parse JSON response:\", e);",
+                  "    return;",
+                  "}",
+                  "",
+                  "const newAccessToken = jsonData.accessToken;",
+                  "pm.environment.set(\"accessToken\", newAccessToken);",
+                  "if (pm.environment.get(\"accessToken\") === newAccessToken) {",
+                  "    pm.test(\"successfully updated accessToken\", true);",
+                  "}",
+                  "",
+                  "const newRefreshToken = jsonData.refreshToken;",
+                  "pm.environment.set(\"refreshToken\", newRefreshToken);",
+                  "if (pm.environment.get(\"refreshToken\") === newRefreshToken) {",
+                  "    pm.test(\"successfully updated refreshToken\", true);",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "d0b90a38-0520-4bb5-964d-e904fd648f86",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"zyne@example.com\",\n  \"password\": \"htetmyetlinA99$\",\n  \"name\": \"zyne\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new user account. An OTP will be sent to the provided email for verification."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "a145770d-2d39-48b1-b6ee-940d98d247da",
+                "exec": [
+                  "const crypto = require('crypto-js');",
+                  "",
+                  "const secret = pm.environment.get(\"HMAC_SECRET_KEY\"); ",
+                  "console.log(secret);",
+                  "",
+                  "const timestamp = Date.now().toString();",
+                  "const nonce = Math.random().toString(36).substring(2, 15);",
+                  "",
+                  "let payload = \"\";",
+                  "if (pm.request.method === 'GET') {",
+                  "    const fullUrl = pm.request.url.toString();",
+                  "    const resolvedUrl = pm.variables.replaceIn(fullUrl);",
+                  "    const urlObj = new URL(resolvedUrl);",
+                  "    payload = urlObj.pathname + urlObj.search;",
+                  "} else {",
+                  "    const rawBody = pm.request.body.toString();",
+                  "    payload = pm.variables.replaceIn(rawBody);",
+                  "}",
+                  "",
+                  "const message = `${timestamp}:${nonce}:${payload}`; // Make sure order is right",
+                  "console.log(message);",
+                  "",
+                  "const hash = crypto.HmacSHA256(message, secret);",
+                  "const signature = crypto.enc.Hex.stringify(hash);",
+                  "",
+                  "pm.variables.set(\"computed_sig\", signature);",
+                  "pm.variables.set(\"computed_ts\", timestamp);",
+                  "pm.variables.set(\"computed_nonce\", nonce);``",
+                  "",
+                  "console.log(\"Payload signed:\", message);",
+                  "console.log(\"Signature:\", signature);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "73847da1-7910-430d-9105-5e1ab4aa2453",
+                "exec": [
+                  "const activeEnvName = pm.environment.name;",
+                  "const TARGET_ENV_NAME = \"\";",
+                  "",
+                  "if (TARGET_ENV_NAME && activeEnvName !== TARGET_ENV_NAME) {",
+                  "    console.warn(`[SKIP] Tokens were not updated. Current active environment is '${activeEnvName}', but the script is set to only run on '${TARGET_ENV_NAME}'.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 200 || pm.response.code >= 300) {",
+                  "    console.error(`Request failed with status: ${pm.response.code}. Skipping token update.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "let jsonData;",
+                  "try {",
+                  "    jsonData = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test(\"Response is valid JSON\", false);",
+                  "    console.error(\"Failed to parse JSON response:\", e);",
+                  "    return;",
+                  "}",
+                  "",
+                  "const newAccessToken = jsonData.accessToken;",
+                  "pm.environment.set(\"accessToken\", newAccessToken);",
+                  "if (pm.environment.get(\"accessToken\") === newAccessToken) {",
+                  "    pm.test(\"successfully updated accessToken\", true);",
+                  "}",
+                  "",
+                  "const newRefreshToken = jsonData.refreshToken;",
+                  "pm.environment.set(\"refreshToken\", newRefreshToken);",
+                  "if (pm.environment.get(\"refreshToken\") === newRefreshToken) {",
+                  "    pm.test(\"successfully updated refreshToken\", true);",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "b7f9e988-0523-4484-bff8-df69257c10c5",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{computed_sig}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{computed_ts}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{computed_nonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"zyne@example.com\",\n  \"password\": \"htetmyetlinA99$\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login with email and password. Returns access and refresh tokens on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Login OTP",
+          "id": "4b9b6a82-b5d9-4ff3-b183-2da98a706c00",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-login-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-login-otp"
+              ]
+            },
+            "description": "Verify the OTP sent during login (if 2FA is enabled)."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Signup OTP",
+          "id": "119eb2c1-45b4-4f8a-ac90-acbe2aecc2c9",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-signup-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-signup-otp"
+              ]
+            },
+            "description": "Verify the OTP sent during registration to complete email verification."
+          },
+          "response": []
+        },
+        {
+          "name": "Send OTP",
+          "id": "2c956a74-df89-4e2b-bd32-fbf0dafe6be4",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/send-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "send-otp"
+              ]
+            },
+            "description": "Resend OTP to the specified email address."
+          },
+          "response": []
+        },
+        {
+          "name": "Check Auth Status",
+          "id": "dd80a642-b690-4ff1-a8bc-05126ad2064c",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "check"
+              ]
+            },
+            "description": "Check if the current access token is valid. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "id": "5eded23d-7121-4311-b68a-9f2da9cead0d",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Logout the current user and invalidate the access token."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "9accbb87-ec70-4641-874a-1b99f0a672e7",
+                "exec": [
+                  "const crypto = require('crypto-js');",
+                  "",
+                  "const secret = pm.environment.get(\"HMAC_SECRET_KEY\"); ",
+                  "console.log(secret);",
+                  "",
+                  "const timestamp = Date.now().toString();",
+                  "const nonce = Math.random().toString(36).substring(2, 15);",
+                  "",
+                  "let payload = \"\";",
+                  "if (pm.request.method === 'GET') {",
+                  "    const fullUrl = pm.request.url.toString();",
+                  "    const resolvedUrl = pm.variables.replaceIn(fullUrl);",
+                  "    const urlObj = new URL(resolvedUrl);",
+                  "    payload = urlObj.pathname + urlObj.search;",
+                  "} else {",
+                  "    const rawBody = pm.request.body.toString();",
+                  "    payload = pm.variables.replaceIn(rawBody);",
+                  "}",
+                  "",
+                  "const message = `${timestamp}:${nonce}:${payload}`; // Make sure order is right",
+                  "console.log(message);",
+                  "",
+                  "const hash = crypto.HmacSHA256(message, secret);",
+                  "const signature = crypto.enc.Hex.stringify(hash);",
+                  "",
+                  "pm.variables.set(\"computed_sig\", signature);",
+                  "pm.variables.set(\"computed_ts\", timestamp);",
+                  "pm.variables.set(\"computed_nonce\", nonce);``",
+                  "",
+                  "console.log(\"Payload signed:\", message);",
+                  "console.log(\"Signature:\", signature);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "c62f2f54-cb41-4c01-b4fe-14c720330484",
+                "exec": [
+                  "const activeEnvName = pm.environment.name;",
+                  "const TARGET_ENV_NAME = \"\";",
+                  "",
+                  "if (TARGET_ENV_NAME && activeEnvName !== TARGET_ENV_NAME) {",
+                  "    console.warn(`[SKIP] Tokens were not updated. Current active environment is '${activeEnvName}', but the script is set to only run on '${TARGET_ENV_NAME}'.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code < 200 || pm.response.code >= 300) {",
+                  "    console.error(`Request failed with status: ${pm.response.code}. Skipping token update.`);",
+                  "    return;",
+                  "}",
+                  "",
+                  "let jsonData;",
+                  "try {",
+                  "    jsonData = pm.response.json();",
+                  "} catch (e) {",
+                  "    pm.test(\"Response is valid JSON\", false);",
+                  "    console.error(\"Failed to parse JSON response:\", e);",
+                  "    return;",
+                  "}",
+                  "",
+                  "const newAccessToken = jsonData.accessToken;",
+                  "pm.environment.set(\"accessToken\", newAccessToken);",
+                  "if (pm.environment.get(\"accessToken\") === newAccessToken) {",
+                  "    pm.test(\"successfully updated accessToken\", true);",
+                  "}",
+                  "",
+                  "const newRefreshToken = jsonData.refreshToken;",
+                  "pm.environment.set(\"refreshToken\", newRefreshToken);",
+                  "if (pm.environment.get(\"refreshToken\") === newRefreshToken) {",
+                  "    pm.test(\"successfully updated refreshToken\", true);",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "0d2a2357-578a-45ce-a035-ff2aa333c3af",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Get a new access token using a valid refresh token."
+          },
+          "response": []
+        }
+      ],
+      "id": "f80f3f0d-d5f4-4f9b-8b29-08c3788843d3",
+      "description": "User authentication endpoints including registration, login, OTP verification, and token management.\n\nAll endpoints require HMAC signing headers except where noted."
+    },
+    {
+      "name": "Password",
+      "item": [
+        {
+          "name": "Forgot Password",
+          "id": "2cef892c-4186-4fbb-8f66-00dcd07fe2f2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/password/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "password",
+                "forgot-password"
+              ]
+            },
+            "description": "Request a password reset. An email with reset instructions will be sent to the provided email address."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "id": "efc100b2-ec6f-4740-af67-6d1f03bb2e09",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token-from-email\",\n  \"newPassword\": \"NewSecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/password/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "password",
+                "reset-password"
+              ]
+            },
+            "description": "Reset password using the token received via email."
+          },
+          "response": []
+        }
+      ],
+      "id": "51b33621-4aca-4a8f-9df5-d3fed9109cc6",
+      "description": "Password management endpoints for forgot password and reset password flows.\n\nAll endpoints require HMAC signing headers."
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Get User by ID",
+          "id": "40e9ff13-be79-4c36-b1c6-def79c2c1d37",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "MongoDB ObjectId of the user"
+                }
+              ]
+            },
+            "description": "Get user details by their ID. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "id": "71fbf3e8-ff46-4c7d-832e-6903e98f24da",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "MongoDB ObjectId of the user"
+                }
+              ]
+            },
+            "description": "Update user details. Users can only update their own profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "id": "7c87ae65-d633-431e-8d0c-eb6b93ed8e57",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "MongoDB ObjectId of the user"
+                }
+              ]
+            },
+            "description": "Delete a user account. Users can only delete their own account."
+          },
+          "response": []
+        }
+      ],
+      "id": "251bdac2-9e17-4d88-87f5-d627bb9b0034",
+      "description": "User management endpoints for CRUD operations on user accounts.\n\nAll endpoints require authentication (Bearer token) and HMAC signing headers."
+    },
+    {
+      "name": "User Profile",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "id": "3f76f0ef-8c2c-41bd-a146-89077649ca15",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-profile/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user-profile",
+                "me"
+              ]
+            },
+            "description": "Get the profile of the currently authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Profile",
+          "id": "ff308be1-3be2-42ff-8500-384ad921b996",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Updated bio\",\n  \"avatar\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user-profile/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user-profile",
+                "me"
+              ]
+            },
+            "description": "Update the profile of the currently authenticated user."
+          },
+          "response": []
+        }
+      ],
+      "id": "3f865e0d-cefa-4d30-9706-e34069205631",
+      "description": "User profile endpoints for managing the current authenticated user's profile.\n\nAll endpoints require authentication (Bearer token) and HMAC signing headers."
+    },
+    {
+      "name": "Property",
+      "item": [
+        {
+          "name": "Create Property",
+          "id": "447d2043-5fd9-4768-b57d-f4d92b874244",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Modern 3BR Apartment\",\n  \"price\": 250000,\n  \"currency\": \"USD\",\n  \"propertyType\": \"apartment\",\n  \"transactionType\": \"sale\",\n  \"locationReadable\": \"123 Main St, New York, NY\",\n  \"locationCoordinates\": {\n    \"type\": \"Point\",\n    \"coordinates\": [-73.935242, 40.730610]\n  },\n  \"city\": \"New York\",\n  \"country\": \"USA\",\n  \"bedrooms\": 3,\n  \"bathrooms\": 2,\n  \"areaSqFt\": 1500,\n  \"category\": \"residential\",\n  \"photos\": [\"https://example.com/photo1.jpg\"],\n  \"amenities\": [\"parking\", \"gym\", \"pool\"],\n  \"builtYear\": 2020,\n  \"furnished\": 1,\n  \"isAvailable\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/property/new",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "property",
+                "new"
+              ]
+            },
+            "description": "Create a new property listing.\n\n**Required fields:**\n- `price`: Positive number\n- `propertyType`: Type of property (apartment, house, condo, etc.)\n- `transactionType`: sale or rent\n- `locationReadable`: Human-readable address\n- `locationCoordinates`: GeoJSON Point with [longitude, latitude]\n- `isAvailable`: Boolean availability status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Property by ID",
+          "id": "961d3788-a15d-48b9-af51-af1e2493d1a7",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/property/find/:propertyId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "property",
+                "find",
+                ":propertyId"
+              ],
+              "variable": [
+                {
+                  "key": "propertyId",
+                  "value": "{{propertyId}}",
+                  "description": "MongoDB ObjectId of the property"
+                }
+              ]
+            },
+            "description": "Get details of a specific property by its ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Properties",
+          "id": "dbb08a11-8ba2-4ca5-9bc3-6cbfb0aff01c",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/property/find?page=1&limit=10&sortBy=createdAt&sortOrder=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "property",
+                "find"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (1-100, default: 10)"
+                },
+                {
+                  "key": "minPrice",
+                  "value": "",
+                  "description": "Minimum price filter",
+                  "disabled": true
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "",
+                  "description": "Maximum price filter",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Property category filter",
+                  "disabled": true
+                },
+                {
+                  "key": "transactionType",
+                  "value": "",
+                  "description": "Transaction type (sale/rent)",
+                  "disabled": true
+                },
+                {
+                  "key": "city",
+                  "value": "",
+                  "description": "City filter",
+                  "disabled": true
+                },
+                {
+                  "key": "country",
+                  "value": "",
+                  "description": "Country filter",
+                  "disabled": true
+                },
+                {
+                  "key": "bedrooms",
+                  "value": "",
+                  "description": "Number of bedrooms filter",
+                  "disabled": true
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "description": "Sort field (price, createdAt, areaSqFt)"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc",
+                  "description": "Sort order (asc, desc)"
+                }
+              ]
+            },
+            "description": "Search and filter properties with pagination.\n\n**Query Parameters:**\n- `page`: Page number (default: 1)\n- `limit`: Items per page (1-100, default: 10)\n- `minPrice`: Minimum price filter\n- `maxPrice`: Maximum price filter\n- `category`: Property category\n- `transactionType`: sale or rent\n- `city`: City filter\n- `country`: Country filter\n- `bedrooms`: Number of bedrooms\n- `sortBy`: price, createdAt, or areaSqFt\n- `sortOrder`: asc or desc"
+          },
+          "response": []
+        }
+      ],
+      "id": "cff52837-66f1-4e19-b574-d524bdce5bcf",
+      "description": "Property management endpoints for creating and searching real estate properties.\n\nAll endpoints require authentication (Bearer token) and HMAC signing headers."
+    },
+    {
+      "name": "Post",
+      "item": [
+        {
+          "name": "Create Post",
+          "id": "186c36cd-9b97-42b9-9dc2-d98a9a8db51f",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Beautiful Family Home for Sale\",\n  \"description\": \"Spacious 4-bedroom home in a quiet neighborhood with excellent schools nearby.\",\n  \"price\": 450000,\n  \"currency\": \"USD\",\n  \"propertyType\": \"house\",\n  \"transactionType\": \"sale\",\n  \"locationReadable\": \"456 Oak Avenue, Los Angeles, CA\",\n  \"locationCoordinates\": {\n    \"type\": \"Point\",\n    \"coordinates\": [-118.243683, 34.052235]\n  },\n  \"city\": \"Los Angeles\",\n  \"country\": \"USA\",\n  \"bedrooms\": 4,\n  \"bathrooms\": 3,\n  \"areaSqFt\": 2500,\n  \"category\": \"residential\",\n  \"photos\": [\"https://example.com/house1.jpg\", \"https://example.com/house2.jpg\"],\n  \"amenities\": [\"garage\", \"backyard\", \"fireplace\"],\n  \"builtYear\": 2015,\n  \"furnished\": 0,\n  \"isAvailable\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/post/new",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "post",
+                "new"
+              ]
+            },
+            "description": "Create a new property listing post.\n\n**Required fields:**\n- All property base fields (price, propertyType, transactionType, locationReadable, locationCoordinates, isAvailable)\n- `description`: Optional detailed description of the listing"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Post",
+          "id": "7605a934-5a4d-4d76-9b67-bdb127926fb2",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 425000,\n  \"description\": \"Price reduced! Beautiful family home.\",\n  \"isAvailable\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/post/update/:postId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "post",
+                "update",
+                ":postId"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "{{postId}}",
+                  "description": "MongoDB ObjectId of the post (24 hex characters)"
+                }
+              ]
+            },
+            "description": "Update an existing post. All fields are optional - only include fields you want to update."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Post",
+          "id": "297fd017-9084-4f63-9fb7-f2cd7426bd5f",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/post/delete/:postId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "post",
+                "delete",
+                ":postId"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "{{postId}}",
+                  "description": "MongoDB ObjectId of the post (24 hex characters)"
+                }
+              ]
+            },
+            "description": "Delete a post by its ID. Users can only delete their own posts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Post by ID",
+          "id": "b3d93d2d-6e5b-462f-8059-52c4b507e149",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/post/find/:postId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "post",
+                "find",
+                ":postId"
+              ],
+              "variable": [
+                {
+                  "key": "postId",
+                  "value": "{{postId}}",
+                  "description": "MongoDB ObjectId of the post (24 hex characters)"
+                }
+              ]
+            },
+            "description": "Get details of a specific post by its ID."
+          },
+          "response": []
+        },
+        {
+          "name": "List Posts",
+          "id": "fbf41466-ec3f-463d-bbe6-e353f3056c35",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "JWT access token"
+              },
+              {
+                "key": "x-signature",
+                "value": "{{hmacSignature}}",
+                "description": "HMAC-SHA256 signature"
+              },
+              {
+                "key": "x-timestamp",
+                "value": "{{hmacTimestamp}}",
+                "description": "Unix timestamp"
+              },
+              {
+                "key": "x-nonce",
+                "value": "{{hmacNonce}}",
+                "description": "Unique nonce"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/post/find?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "post",
+                "find"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (1-100, default: 10)"
+                },
+                {
+                  "key": "userId",
+                  "value": "",
+                  "description": "Filter posts by user ID",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all posts with pagination.\n\n**Query Parameters:**\n- `page`: Page number (default: 1)\n- `limit`: Items per page (1-100, default: 10)\n- `userId`: Optional filter to get posts by a specific user"
+          },
+          "response": []
+        }
+      ],
+      "id": "17e1c481-4cf0-42d7-8c82-547f89021e70",
+      "description": "Post management endpoints for creating, updating, and managing property listing posts.\n\nAll endpoints require authentication (Bearer token) and HMAC signing headers."
+    }
+  ],
+  "variable": [
+    {
+      "id": "a76b8472-59a6-4b45-a090-41050cb178da",
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "default"
+    }
+  ]
+}
