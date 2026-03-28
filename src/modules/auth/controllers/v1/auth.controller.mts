@@ -95,34 +95,21 @@ export const authController = {
     next: NextFunction,
   ) {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("RefreshToken ")) {
-        res
-          .status(401)
-          .json({ message: "Refresh token not found in Authorization header" });
-        return;
-      }
-      const refreshToken = authHeader.split(" ")[1];
-      if (!refreshToken) {
-        res.status(401).json({ message: "Refresh token not found" });
-        return;
-      } else {
-        const rawIp = req.headers["x-forwarded-for"] || req.ip || undefined;
-        const ip = cleanIp(normalizeIp(rawIp));
-        const userAgent = req.headers["user-agent"] || "unknown";
+      const rawIp = req.headers["x-forwarded-for"] || req.ip || undefined;
+      const ip = cleanIp(normalizeIp(rawIp));
+      const userAgent = req.headers["user-agent"] || "unknown";
 
-        const validatedBody = req.validated!.body as RefreshDto;
-        const newTokens = await authService.refresh(
-          refreshToken,
-          ip,
-          userAgent,
-          validatedBody.deviceId,
-        );
-        res.status(200).json({
-          accessToken: newTokens.accessToken,
-          refreshToken: newTokens.refreshToken,
-        });
-      }
+      const validatedBody = req.validated!.body as RefreshDto;
+      const newTokens = await authService.refresh(
+        validatedBody.refreshToken,
+        ip,
+        userAgent,
+        validatedBody.deviceId,
+      );
+      res.status(200).json({
+        accessToken: newTokens.accessToken,
+        refreshToken: newTokens.refreshToken,
+      });
     } catch (err) {
       next(err);
     }

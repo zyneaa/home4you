@@ -52,25 +52,25 @@ dev-up:
 
 dev-down:
 	@echo "$(BLUE)Stopping development services...$(NC)"
-	docker-compose -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 dev-logs:
-	docker-compose -f docker-compose.dev.yml logs -f app
+	docker compose -f docker-compose.dev.yml logs -f app
 
 dev-restart:
 	@echo "$(BLUE)Restarting development services...$(NC)"
-	docker-compose -f docker-compose.dev.yml restart app
+	docker compose -f docker-compose.dev.yml restart app
 
 dev-clean:
 	@echo "$(YELLOW)Warning: This will remove all development data!$(NC)"
-	docker-compose -f docker-compose.dev.yml down -v
+	docker compose -f docker-compose.dev.yml down -v
 
 dev-build:
 	@echo "$(BLUE)Building development image...$(NC)"
-	docker-compose -f docker-compose.dev.yml build
+	docker compose -f docker-compose.dev.yml build
 
 dev-shell:
-	docker-compose -f docker-compose.dev.yml exec app sh
+	docker compose -f docker-compose.dev.yml exec app sh
 
 # Code quality commands
 test:
