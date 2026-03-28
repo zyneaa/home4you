@@ -8,6 +8,14 @@ import type { UpdatePostDto } from "./dtos/updatePost.dto.mjs";
 import { Post } from "./post.model.mjs";
 
 export const postService = {
+  /**
+   * Creates a new property and an associated post in a database transaction.
+   *
+   * @param userId - The ID of the user creating the post.
+   * @param dto - Data for creating the post and property.
+   * @returns The created post object.
+   * @throws {AppError} If property creation fails.
+   */
   async createPost(userId: string, dto: CreatePostDto) {
     const session = await mongoose.startSession();
     try {
@@ -54,6 +62,15 @@ export const postService = {
     }
   },
 
+  /**
+   * Updates a post's description and its associated property data.
+   *
+   * @param userId - The ID of the user attempting the update.
+   * @param postId - The ID of the post to update.
+   * @param dto - The update data.
+   * @returns The updated post object.
+   * @throws {AppError} If post not found or user not authorized.
+   */
   async updatePost(userId: string, postId: string, dto: UpdatePostDto) {
     if (!mongoose.Types.ObjectId.isValid(postId)) {
       throw new AppError("Invalid Post ID", 400);
@@ -100,6 +117,14 @@ export const postService = {
     }
   },
 
+  /**
+   * Deletes a post and its associated property.
+   *
+   * @param userId - The ID of the user attempting the deletion.
+   * @param postId - The ID of the post to delete.
+   * @returns A success message object.
+   * @throws {AppError} If post not found or user not authorized.
+   */
   async deletePost(userId: string, postId: string) {
     if (!mongoose.Types.ObjectId.isValid(postId)) {
       throw new AppError("Invalid Post ID", 400);
@@ -131,6 +156,13 @@ export const postService = {
     return { message: "Post deleted successfully" };
   },
 
+  /**
+   * Retrieves a single post by ID with populated details.
+   *
+   * @param postId - The ID of the post to retrieve.
+   * @returns The post document with populated listedBy and property fields.
+   * @throws {AppError} If post not found.
+   */
   async getPostById(postId: string) {
     if (!mongoose.Types.ObjectId.isValid(postId)) {
       throw new AppError("Invalid Post ID", 400);
@@ -145,6 +177,12 @@ export const postService = {
     return post;
   },
 
+  /**
+   * Retrieves a paginated list of posts, optionally filtered by userId.
+   *
+   * @param options - Pagination and filter options.
+   * @returns Paginated posts and metadata.
+   */
   async getPosts(options: ListPostsDto) {
     const { page = 1, limit = 10, userId } = options;
     const query: any = {};

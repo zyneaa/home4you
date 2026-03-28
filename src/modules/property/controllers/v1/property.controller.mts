@@ -6,6 +6,14 @@ import { AppError } from "@utils";
 import type { Request, Response, NextFunction } from "express";
 
 export const propertyController = {
+  /**
+   * Creates a new property listing.
+   * Logic flow:
+   * 1. Verifies that the user is authenticated.
+   * 2. Retrieves validated property data from the request.
+   * 3. Calls propertyService to save the new property to the database.
+   * 4. Returns the created property with a 201 status.
+   */
   async createProperty(
     req: Request<unknown, unknown, CreatePropertyDto>,
     res: Response,
@@ -28,6 +36,13 @@ export const propertyController = {
     }
   },
 
+  /**
+   * Retrieves a specific property by its ID.
+   * Logic flow:
+   * 1. Verifies that the user is authenticated.
+   * 2. Calls propertyService to fetch the property details by ID.
+   * 3. Returns the property details with a 200 status.
+   */
   async getProperty(
     req: Request<{ propertyId: string }>,
     res: Response,
@@ -45,6 +60,12 @@ export const propertyController = {
     }
   },
 
+  /**
+   * Retrieves a list of properties based on query filters.
+   * Logic flow:
+   * 1. Passes query parameters (filters, pagination) to propertyService.
+   * 2. Returns the list of matching properties with a 200 status.
+   */
   async getProperties(
     req: Request<unknown, unknown, unknown, QueryPropertyDto>,
     res: Response,
@@ -59,6 +80,13 @@ export const propertyController = {
     }
   },
 
+  /**
+   * Updates an existing property listing.
+   * Logic flow:
+   * 1. Verifies that the user is authenticated.
+   * 2. Calls propertyService to update the property details, ensuring the user is the owner.
+   * 3. Returns the updated property with a 202 status.
+   */
   async updateProperty(
     req: Request<unknown, unknown, UpdatePropertyDto>,
     res: Response,
