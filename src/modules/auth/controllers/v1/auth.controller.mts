@@ -11,7 +11,7 @@ import type { Request, Response, NextFunction } from "express";
 
 /**
  * Normalizes an IP address from various possible formats.
- * 
+ *
  * @param ip - The raw IP address string, array, or undefined.
  * @returns A normalized string representation of the IP address.
  */
@@ -32,7 +32,7 @@ function normalizeIp(ip: string | string[] | undefined): string {
 
 /**
  * Cleans an IP address by removing the IPv6 prefix if present.
- * 
+ *
  * @param ip - The IP address string to clean.
  * @returns The cleaned IP address string.
  */
@@ -49,7 +49,7 @@ function cleanIp(ip: string): string {
 export const authController = {
   /**
    * Handles user registration.
-   * 
+   *
    * Logic flow:
    * 1. Extracts validated registration data from the request body.
    * 2. Calls authService.register to create the user and send an OTP.
@@ -76,7 +76,7 @@ export const authController = {
 
   /**
    * Handles user login.
-   * 
+   *
    * Logic flow:
    * 1. Extracts validated login credentials from the request body.
    * 2. Calls authService.login to verify credentials and initiate the login process (e.g., sending OTP).
@@ -99,7 +99,7 @@ export const authController = {
 
   /**
    * Handles user logout.
-   * 
+   *
    * Logic flow:
    * 1. Extracts the access token from the Authorization header.
    * 2. Validates the presence of the access token; returns 401 if missing.
@@ -135,7 +135,7 @@ export const authController = {
 
   /**
    * Handles token refreshing.
-   * 
+   *
    * Logic flow:
    * 1. Normalizes the client's IP address and user agent from the request.
    * 2. Extracts validated refresh token and device ID from the request body.
@@ -171,14 +171,14 @@ export const authController = {
 
   /**
    * General handler for verifying OTP codes.
-   * 
+   *
    * Logic flow:
    * 1. Normalizes the client's IP address and user agent from the request.
    * 2. Extracts validated OTP, email, and device ID from the request body.
    * 3. Calls otpCodeService.verifyOtp with the specified OTP type.
    * 4. Returns a 200 OK status with the new session tokens and user data.
    * 5. Catches and passes any errors to the global error handler.
-   * 
+   *
    * @param req - Express request object.
    * @param res - Express response object.
    * @param type - The type of OTP being verified (e.g., SIGNUP, LOGIN).
@@ -217,7 +217,7 @@ export const authController = {
 
   /**
    * Handles OTP verification for user sign-up.
-   * 
+   *
    * Logic flow:
    * 1. Delegates to authController.verifyOtp with OtpType.SIGNUP.
    */
@@ -231,7 +231,7 @@ export const authController = {
 
   /**
    * Handles OTP verification for user login.
-   * 
+   *
    * Logic flow:
    * 1. Delegates to authController.verifyOtp with OtpType.LOGIN.
    */
@@ -245,7 +245,7 @@ export const authController = {
 
   /**
    * Handles requests to resend an OTP code.
-   * 
+   *
    * Logic flow:
    * 1. Extracts validated email, type, and channel from the request body.
    * 2. Calls otpCodeService.resendOtp to generate and send a new OTP.
@@ -272,7 +272,7 @@ export const authController = {
 
   /**
    * Checks the current user's authentication status.
-   * 
+   *
    * Logic flow:
    * 1. Returns a 200 OK status with the user object attached to the request (by auth middleware).
    */

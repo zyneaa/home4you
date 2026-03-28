@@ -18,7 +18,7 @@ import { OtpType } from "./types/otpType.type.mjs";
 export const otpCodeService = {
   /**
    * Generates a random numeric OTP of a specified length.
-   * 
+   *
    * @param length - The number of digits in the OTP.
    * @returns A string representing the generated OTP.
    * @throws Error if the length is not a positive integer.
@@ -36,7 +36,7 @@ export const otpCodeService = {
 
   /**
    * Sends an OTP code to a user's email address.
-   * 
+   *
    * @param email - The recipient's email address.
    * @param otp - The OTP code to send.
    */
@@ -52,7 +52,7 @@ export const otpCodeService = {
 
   /**
    * Resends an OTP to a user, implementing rate limiting.
-   * 
+   *
    * @param email - The recipient's email address.
    * @param type - The type of OTP (e.g., SIGNUP, LOGIN).
    * @param channel - The delivery channel (e.g., EMAIL).
@@ -102,7 +102,7 @@ export const otpCodeService = {
 
   /**
    * Creates a new OTP record in the database, replacing any existing ones of the same type for the user.
-   * 
+   *
    * @param userId - The ID of the user.
    * @param otp - The raw OTP code.
    * @param type - The type of OTP.
@@ -144,7 +144,7 @@ export const otpCodeService = {
 
   /**
    * Orchestrates the generation, sending, and storage of an OTP.
-   * 
+   *
    * @param userId - The ID of the user.
    * @param email - The recipient's email address.
    * @param type - The type of OTP.
@@ -165,7 +165,7 @@ export const otpCodeService = {
 
   /**
    * Verifies an OTP code and establishes an authentication session if successful.
-   * 
+   *
    * @param email - The user's email address.
    * @param otp - The raw OTP code to verify.
    * @param type - The type of OTP.

@@ -24,7 +24,7 @@ import type { RegisterDto } from "./dtos/register.dto.mjs";
 export const authService = {
   /**
    * Registers a new user and sends an OTP for verification.
-   * 
+   *
    * @param dto - Registration data transfer object.
    * @returns A success message indicating that the OTP has been sent.
    * @throws AppError if registration fails.
@@ -79,7 +79,7 @@ export const authService = {
 
   /**
    * Authenticates a user and sends an OTP for login verification.
-   * 
+   *
    * @param dto - Login data transfer object.
    * @returns A success message indicating that the OTP has been sent.
    * @throws AppError if credentials are invalid or the account is locked.
@@ -140,7 +140,7 @@ export const authService = {
 
   /**
    * Creates a new authentication session and returns access and refresh tokens.
-   * 
+   *
    * @param userId - The ID of the user.
    * @param ipAddress - The client's IP address.
    * @param userAgent - The client's user agent.
@@ -191,7 +191,7 @@ export const authService = {
 
   /**
    * Logs out a user by blacklisting the access token and revoking the session.
-   * 
+   *
    * @param dto - Logout data transfer object containing the refresh token and device ID.
    * @param accessToken - The access token to be blacklisted.
    * @throws AppError if logout data is invalid.
@@ -241,7 +241,7 @@ export const authService = {
 
   /**
    * Refreshes an authentication session and returns new tokens.
-   * 
+   *
    * @param refreshToken - The current refresh token.
    * @param ipAddress - The client's IP address.
    * @param userAgent - The client's user agent.
@@ -339,7 +339,7 @@ export const authService = {
 
   /**
    * Increases the failed login attempt counter and locks the account if the threshold is reached.
-   * 
+   *
    * @param user - The user document.
    * @param session - The MongoDB client session for transactional operations.
    */

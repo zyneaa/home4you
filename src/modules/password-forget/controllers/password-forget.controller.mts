@@ -10,7 +10,7 @@ import { passwordForgetService } from "../password-forget.service.mjs";
 export const passwordForgetController = {
   /**
    * Initiates the forgot password process.
-   * 
+   *
    * Logic flow:
    * 1. Extracts the user's email from the request body.
    * 2. Calls passwordForgetService.forgotPassword to generate and send a reset OTP.
@@ -32,7 +32,7 @@ export const passwordForgetController = {
 
   /**
    * Resets the user's password using an OTP.
-   * 
+   *
    * Logic flow:
    * 1. Extracts the email, OTP, and new password from the request body.
    * 2. Calls passwordForgetService.resetPassword to verify the OTP and update the user's password.

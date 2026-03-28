@@ -16,7 +16,7 @@ import type { ResetPasswordDto } from "./dtos/reset-password.dto.mjs";
 export const passwordForgetService = {
   /**
    * Initiates the password recovery process by sending an OTP to the user's email.
-   * 
+   *
    * @param dto - Data transfer object containing the user's email.
    * @returns A success message indicating that an OTP has been sent.
    */
@@ -60,7 +60,7 @@ export const passwordForgetService = {
 
   /**
    * Resets the user's password using a verified OTP.
-   * 
+   *
    * @param dto - Data transfer object containing the email, OTP, and new password.
    * @returns A success message indicating that the password has been reset.
    * @throws AppError if the email or OTP is invalid, expired, or the account is locked.
