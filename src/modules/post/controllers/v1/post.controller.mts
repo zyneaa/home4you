@@ -6,6 +6,14 @@ import { AppError } from "@utils";
 import type { NextFunction, Request, Response } from "express";
 
 export const postController = {
+  /**
+   * Creates a new post and associated property.
+   * Logic flow:
+   * 1. Checks if the user is authenticated.
+   * 2. Extracts validated data from the request body.
+   * 3. Calls postService to create the property and post within a transaction.
+   * 4. Returns the created post with a 201 status.
+   */
   async createPost(
     req: Request<unknown, unknown, CreatePostDto>,
     res: Response,
@@ -25,6 +33,14 @@ export const postController = {
     }
   },
 
+  /**
+   * Updates an existing post and its associated property.
+   * Logic flow:
+   * 1. Checks if the user is authenticated.
+   * 2. Extracts validated data from the request body and post ID from params.
+   * 3. Calls postService to update the post and property data.
+   * 4. Returns the updated post with a 200 status.
+   */
   async updatePost(
     req: Request<{ postId: string }, unknown, UpdatePostDto>,
     res: Response,
@@ -48,6 +64,14 @@ export const postController = {
     }
   },
 
+  /**
+   * Deletes a post and its associated property.
+   * Logic flow:
+   * 1. Checks if the user is authenticated.
+   * 2. Extracts post ID from params.
+   * 3. Calls postService to delete the post and its linked property.
+   * 4. Returns a success message with a 200 status.
+   */
   async deletePost(
     req: Request<{ postId: string }>,
     res: Response,
@@ -69,6 +93,13 @@ export const postController = {
     }
   },
 
+  /**
+   * Retrieves a single post by its ID.
+   * Logic flow:
+   * 1. Extracts post ID from params.
+   * 2. Calls postService to fetch the post with populated details.
+   * 3. Returns the post with a 200 status.
+   */
   async getPost(
     req: Request<{ postId: string }>,
     res: Response,
@@ -83,6 +114,13 @@ export const postController = {
     }
   },
 
+  /**
+   * Retrieves a list of posts with pagination and optional filtering.
+   * Logic flow:
+   * 1. Extracts validated query parameters (page, limit, userId).
+   * 2. Calls postService to fetch a paginated list of posts.
+   * 3. Returns the list of posts and metadata with a 200 status.
+   */
   async getPosts(
     req: Request<unknown, unknown, unknown, ListPostsDto>,
     res: Response,

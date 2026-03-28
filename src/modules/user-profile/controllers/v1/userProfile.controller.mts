@@ -3,7 +3,21 @@ import { userProfileService } from "@modules/user-profile/userProfile.service.mj
 import { AppError } from "@utils";
 import type { Request, Response, NextFunction } from "express";
 
+/**
+ * Controller for handling user profile-related operations.
+ */
 export const userProfileController = {
+  /**
+   * Retrieves the profile of the currently authenticated user.
+   *
+   * Logic flow:
+   * 1. Extract the authenticated user from the request object.
+   * 2. If the user is not authenticated, throw a 401 Unauthorized error.
+   * 3. Fetch the user's profile from the profile service using the user's ID.
+   * 4. Return a 200 OK response with a merged object containing user and profile data,
+   *    while excluding internal fields like userId, __v, and _id.
+   * 5. Catch any errors and pass them to the global error handler.
+   */
   async getProfile(req: Request, res: Response, next: NextFunction) {
     try {
       const user = req.user;
@@ -24,6 +38,16 @@ export const userProfileController = {
     }
   },
 
+  /**
+   * Updates the profile of the currently authenticated user.
+   *
+   * Logic flow:
+   * 1. Extract the authenticated user from the request object.
+   * 2. If the user is not found, throw a 404 Not Found error.
+   * 3. Call the profile service to update the user's profile with the data provided in the request body.
+   * 4. Return a 200 OK response with a success message.
+   * 5. Catch any errors and pass them to the global error handler.
+   */
   async updateProfile(
     req: Request<unknown, unknown, UpdateUserProfileDto>,
     res: Response,

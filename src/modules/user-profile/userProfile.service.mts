@@ -3,12 +3,29 @@ import { AppError } from "@utils";
 import type { UpdateUserProfileDto } from "./dtos/updateProfile.dto.mjs";
 import { UserProfile } from "./userProfile.model.mjs";
 
+/**
+ * Service for managing user profiles.
+ */
 export const userProfileService = {
+  /**
+   * Retrieves the profile associated with a specific user ID.
+   *
+   * @param {string} userId - The unique identifier of the user whose profile is to be retrieved.
+   * @returns {Promise<any>} A promise that resolves to the lean user profile object or null if not found.
+   */
   async getProfile(userId: string) {
     const profile = UserProfile.findOne({ userId }).lean();
     return profile;
   },
 
+  /**
+   * Updates an existing user profile or creates a new one if it doesn't exist.
+   *
+   * @param {string} userId - The unique identifier of the user.
+   * @param {UpdateUserProfileDto} updatedProfile - Data transfer object containing profile updates.
+   * @throws {AppError} Throws a 400 Bad Request error if no fields are provided for the update.
+   * @returns {Promise<any>} A promise that resolves to the updated or newly created lean user profile object.
+   */
   async updateProfile(userId: string, updatedProfile: UpdateUserProfileDto) {
     if (!updatedProfile || Object.keys(updatedProfile).length === 0) {
       throw new AppError("No fields to update", 400);

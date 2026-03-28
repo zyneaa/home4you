@@ -18,7 +18,17 @@ import type { LoginDto } from "./dtos/login.dto.mjs";
 import type { LogoutDto } from "./dtos/logout.dto.mjs";
 import type { RegisterDto } from "./dtos/register.dto.mjs";
 
+/**
+ * Service handling authentication logic.
+ */
 export const authService = {
+  /**
+   * Registers a new user and sends an OTP for verification.
+   *
+   * @param dto - Registration data transfer object.
+   * @returns A success message indicating that the OTP has been sent.
+   * @throws AppError if registration fails.
+   */
   async register(dto: RegisterDto) {
     const session = await mongoose.startSession();
     let otp: string;
@@ -67,6 +77,13 @@ export const authService = {
     }
   },
 
+  /**
+   * Authenticates a user and sends an OTP for login verification.
+   *
+   * @param dto - Login data transfer object.
+   * @returns A success message indicating that the OTP has been sent.
+   * @throws AppError if credentials are invalid or the account is locked.
+   */
   async login(dto: LoginDto) {
     const session = await mongoose.startSession();
     let otp: string;
@@ -121,6 +138,16 @@ export const authService = {
     }
   },
 
+  /**
+   * Creates a new authentication session and returns access and refresh tokens.
+   *
+   * @param userId - The ID of the user.
+   * @param ipAddress - The client's IP address.
+   * @param userAgent - The client's user agent.
+   * @param deviceId - The client's device ID.
+   * @param session - The MongoDB client session for transactional operations.
+   * @returns An object containing the new access and refresh tokens.
+   */
   async createSession(
     userId: string,
     ipAddress: string | unknown,
@@ -162,6 +189,13 @@ export const authService = {
     return { accessToken, refreshToken };
   },
 
+  /**
+   * Logs out a user by blacklisting the access token and revoking the session.
+   *
+   * @param dto - Logout data transfer object containing the refresh token and device ID.
+   * @param accessToken - The access token to be blacklisted.
+   * @throws AppError if logout data is invalid.
+   */
   async logout(dto: LogoutDto, accessToken: string) {
     const { jti, exp } = jwtToken.verify(accessToken) as {
       jti: string;
@@ -205,6 +239,16 @@ export const authService = {
     );
   },
 
+  /**
+   * Refreshes an authentication session and returns new tokens.
+   *
+   * @param refreshToken - The current refresh token.
+   * @param ipAddress - The client's IP address.
+   * @param userAgent - The client's user agent.
+   * @param deviceId - The client's device ID.
+   * @returns An object containing the new access and refresh tokens.
+   * @throws AppError if the refresh token is invalid or reuse is detected.
+   */
   async refresh(
     refreshToken: string,
     ipAddress: string,
@@ -293,6 +337,12 @@ export const authService = {
     }
   },
 
+  /**
+   * Increases the failed login attempt counter and locks the account if the threshold is reached.
+   *
+   * @param user - The user document.
+   * @param session - The MongoDB client session for transactional operations.
+   */
   async lockAccount(user: IUser, session: ClientSession) {
     if (user.failedLoginAttempts !== undefined) {
       user.failedLoginAttempts += 1;

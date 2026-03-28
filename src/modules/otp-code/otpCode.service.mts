@@ -12,7 +12,17 @@ import mongoose, { type ClientSession } from "mongoose";
 import type { Channel } from "./types/channel.type.mjs";
 import { OtpType } from "./types/otpType.type.mjs";
 
+/**
+ * Service for managing One-Time Password (OTP) codes.
+ */
 export const otpCodeService = {
+  /**
+   * Generates a random numeric OTP of a specified length.
+   *
+   * @param length - The number of digits in the OTP.
+   * @returns A string representing the generated OTP.
+   * @throws Error if the length is not a positive integer.
+   */
   async generateOtp(length: number): Promise<string> {
     if (length <= 0) {
       throw new Error("Length must be a positive integer.");
@@ -24,6 +34,12 @@ export const otpCodeService = {
     return numericOtp.toString();
   },
 
+  /**
+   * Sends an OTP code to a user's email address.
+   *
+   * @param email - The recipient's email address.
+   * @param otp - The OTP code to send.
+   */
   async sendOtp(email: string, otp: string): Promise<void> {
     await transporter.sendMail({
       from: `"Home For You" <${env.SMTP_USER}>`,
@@ -34,6 +50,15 @@ export const otpCodeService = {
     });
   },
 
+  /**
+   * Resends an OTP to a user, implementing rate limiting.
+   *
+   * @param email - The recipient's email address.
+   * @param type - The type of OTP (e.g., SIGNUP, LOGIN).
+   * @param channel - The delivery channel (e.g., EMAIL).
+   * @returns A success message.
+   * @throws AppError if rate limited or user not found.
+   */
   async resendOtp(
     email: string,
     type: OtpType,
@@ -75,6 +100,16 @@ export const otpCodeService = {
     }
   },
 
+  /**
+   * Creates a new OTP record in the database, replacing any existing ones of the same type for the user.
+   *
+   * @param userId - The ID of the user.
+   * @param otp - The raw OTP code.
+   * @param type - The type of OTP.
+   * @param channel - The delivery channel.
+   * @param session - The MongoDB client session for transactional operations.
+   * @returns An object containing the raw OTP and its expiration date.
+   */
   async createAndSetOtp(
     userId: string,
     otp: string,
@@ -107,6 +142,15 @@ export const otpCodeService = {
     };
   },
 
+  /**
+   * Orchestrates the generation, sending, and storage of an OTP.
+   *
+   * @param userId - The ID of the user.
+   * @param email - The recipient's email address.
+   * @param type - The type of OTP.
+   * @param channel - The delivery channel.
+   * @param session - The MongoDB client session for transactional operations.
+   */
   async otpOperation(
     userId: string,
     email: string,
@@ -119,6 +163,18 @@ export const otpCodeService = {
     await this.createAndSetOtp(userId, otp, type, channel, session);
   },
 
+  /**
+   * Verifies an OTP code and establishes an authentication session if successful.
+   *
+   * @param email - The user's email address.
+   * @param otp - The raw OTP code to verify.
+   * @param type - The type of OTP.
+   * @param ipAddress - The client's IP address.
+   * @param userAgent - The client's user agent.
+   * @param deviceId - The client's device ID.
+   * @returns An object containing session tokens and the user object.
+   * @throws AppError if the OTP is invalid, expired, or the account is locked.
+   */
   async verifyOtp(
     email: string,
     otp: string,
