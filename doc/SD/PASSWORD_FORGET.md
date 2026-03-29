@@ -15,7 +15,7 @@ sequenceDiagram
     App->>Ctrl: POST /api/v1/password/forgot (email)
     Ctrl->>Svc: forgotPassword(dto)
     Svc->>DB: Find User by Email
-    
+
     alt User Exists
         Svc->>OTP: generateOtp(6)
         Svc->>OTP: createAndSetOtp(userId, otp, PASSWORD_RESET)
@@ -23,17 +23,17 @@ sequenceDiagram
         Svc->>OTP: sendOtp(email, otp)
         OTP->>Mail: Send Email
     end
-    
+
     Svc-->>Ctrl: "OTP has been sent" (Silent success if user doesn't exist)
     Ctrl-->>App: 200 OK
 
     Note over App, Mail: Reset Password Step
     App->>Ctrl: POST /api/v1/password/reset (email, otp, newPassword)
     Ctrl->>Svc: resetPassword(dto)
-    
+
     Svc->>DB: Find User + PasswordHash
     Svc->>DB: Find OTP Code (PASSWORD_RESET)
-    
+
     alt OTP Valid & Not Expired
         Svc->>Svc: user.setPassword(newPassword)
         Svc->>DB: Save User

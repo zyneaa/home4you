@@ -13,9 +13,9 @@ sequenceDiagram
 
     App->>Ctrl: POST /api/v1/auth/login (email, password)
     Ctrl->>Svc: login(dto)
-    
+
     Svc->>DB: Find User (with passwordHash)
-    
+
     alt User Not Found or Locked
         Svc-->>Ctrl: Throw AppError
         Ctrl-->>App: 401 Unauthorized / 423 Locked

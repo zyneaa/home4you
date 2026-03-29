@@ -14,10 +14,13 @@ As outlined in [GEMINI.md](../GEMINI.md), this project follows several core arch
 ## Documentation Index
 
 ### 1. Data Models (ERD)
+
 The Entity Relationship Diagram (ERD) provides a high-level view of the database schema and the relationships between different entities.
+
 - [Database ERD](./ERD/DATABASE_ERD.md)
 
 ### 2. Business Logic Flows (Sequence Diagrams)
+
 Sequence diagrams help visualize the interaction between different components (Controllers, Services, Models, and External Systems like Redis/Mailers).
 
 - **Authentication Flows:**
@@ -30,4 +33,4 @@ Sequence diagrams help visualize the interaction between different components (C
 
 ---
 
-*Last updated: March 29, 2026*
+_Last updated: March 29, 2026_

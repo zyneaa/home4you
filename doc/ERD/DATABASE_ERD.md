@@ -9,7 +9,7 @@ erDiagram
     User ||--o{ Property : "lists"
     User ||--o{ Post : "creates"
     User ||--|| UserProfile : "has"
-    
+
     Property ||--o{ Post : "featured_in"
     AuthSession ||--o{ OtpCode : "linked_to"
 

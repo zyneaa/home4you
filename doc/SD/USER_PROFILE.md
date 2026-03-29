@@ -19,7 +19,7 @@ sequenceDiagram
     Note over App, DB: UPDATE Profile
     App->>Ctrl: PATCH /api/v1/profile (updateData)
     Ctrl->>Svc: updateProfile(userId, dto)
-    
+
     alt No fields provided
         Svc-->>Ctrl: Throw 400 (No fields)
     else Valid Update

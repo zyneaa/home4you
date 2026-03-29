@@ -12,15 +12,15 @@ sequenceDiagram
 
     App->>Ctrl: POST /api/v1/auth/refresh (refreshToken, deviceId)
     Ctrl->>Svc: refresh(token, ip, ua, deviceId)
-    
+
     Svc->>DB: Start Session (Transaction)
     Svc->>DB: Find Active AuthSession (by deviceId)
-    
+
     alt Session Not Found
         Svc-->>Ctrl: Throw 401 (Invalid/Expired)
     else Session Exists
         Svc->>Svc: Verify Token Hash (Argon2)
-        
+
         alt Token Reuse Detected (Hash Mismatch)
             Svc->>DB: Revoke ALL sessions for User
             Log->>Log: Log Security Warning
