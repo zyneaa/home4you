@@ -1,0 +1,67 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+bin/
+build/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+# If you want to ignore the output of notebooks for cleaner git history:
+# (Requires additional tools like nbstripout, but these patterns help)
+.jupyter
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.noscripts
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+
+# Environments / Secrets
+.env
+.venv
+env/
+venv/
+*.env
+
+data/

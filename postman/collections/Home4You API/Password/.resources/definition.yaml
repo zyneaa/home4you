@@ -1,0 +1,6 @@
+$kind: collection
+description: |-
+  Password management endpoints for forgot password and reset password flows.
+
+  All endpoints require HMAC signing headers.
+order: 3000

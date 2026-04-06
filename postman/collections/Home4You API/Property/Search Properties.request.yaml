@@ -1,0 +1,74 @@
+$kind: http-request
+description: |-
+  Search and filter properties with pagination.
+
+  **Query Parameters:**
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (1-100, default: 10)
+  - `minPrice`: Minimum price filter
+  - `maxPrice`: Maximum price filter
+  - `category`: Property category
+  - `transactionType`: sale or rent
+  - `city`: City filter
+  - `country`: Country filter
+  - `bedrooms`: Number of bedrooms
+  - `sortBy`: price, createdAt, or areaSqFt
+  - `sortOrder`: asc or desc
+url: "{{baseUrl}}/api/v1/property/find?page=1&limit=10&sortBy=createdAt&sortOrd\
+  er=desc"
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    description: JWT access token
+  - key: x-signature
+    value: "{{hmacSignature}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{hmacTimestamp}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{hmacNonce}}"
+    description: Unique nonce
+queryParams:
+  - key: page
+    value: "1"
+    description: "Page number (default: 1)"
+  - key: limit
+    value: "10"
+    description: "Items per page (1-100, default: 10)"
+  - key: minPrice
+    value: ""
+    disabled: true
+    description: Minimum price filter
+  - key: maxPrice
+    value: ""
+    disabled: true
+    description: Maximum price filter
+  - key: category
+    value: ""
+    disabled: true
+    description: Property category filter
+  - key: transactionType
+    value: ""
+    disabled: true
+    description: Transaction type (sale/rent)
+  - key: city
+    value: ""
+    disabled: true
+    description: City filter
+  - key: country
+    value: ""
+    disabled: true
+    description: Country filter
+  - key: bedrooms
+    value: ""
+    disabled: true
+    description: Number of bedrooms filter
+  - key: sortBy
+    value: createdAt
+    description: Sort field (price, createdAt, areaSqFt)
+  - key: sortOrder
+    value: desc
+    description: Sort order (asc, desc)
+order: 3000

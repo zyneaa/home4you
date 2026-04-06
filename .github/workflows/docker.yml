@@ -28,7 +28,8 @@ jobs:
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./services/core
+          file: ./services/core/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
@@ -50,29 +51,29 @@ jobs:
 
             # Navigate to app folder
             cd ~/app || { echo "ERROR: ~/app directory not found"; exit 1; }
-            
+
             # Verify docker-compose.yml exists
             if [ ! -f "docker-compose.yml" ]; then
               echo "ERROR: docker-compose.yml not found in ~/app"
               echo "Please ensure docker-compose.yml is present on the EC2 host"
               exit 1
             fi
-            
+
             # Set image name for docker-compose
             export IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            
+
             # Pull latest images
             echo "Pulling latest images..."
             docker compose pull
-            
+
             # Start all services together to ensure they're on the same network
             echo "Starting all services..."
             docker compose up -d --remove-orphans
-            
+
             # Verify services are running
             echo "Verifying services are running..."
             sleep 5
             docker compose ps
-            
+
             # Clean up unused images
             docker image prune -f

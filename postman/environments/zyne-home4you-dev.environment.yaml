@@ -1,0 +1,33 @@
+name: zyne-home4you-dev
+values:
+  - key: BASE_URL
+    value: 'http://localhost:3000'
+    enabled: true
+  - key: API_VERSION
+    value: v1
+    enabled: true
+  - key: ACCESS_TOKEN
+    value: ''
+    enabled: true
+  - key: REFRESH_TOKEN
+    value: ''
+    enabled: true
+  - key: HMAC_SECRET_KEY
+    value: ''
+    enabled: true
+  - key: DEVICE_ID
+    value: ''
+    enabled: true
+  - key: USERNAME
+    value: ''
+    enabled: true
+  - key: EMAIL
+    value: ''
+    enabled: true
+  - key: PASSWORD
+    value: ''
+    enabled: true
+  - key: EMAIL_CHANNEL
+    value: ''
+    enabled: true
+color: 240

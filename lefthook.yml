@@ -1,0 +1,11 @@
+jre-commit:
+  parallel: true
+  commands:
+    service-core:
+      root: "services/core/"
+      glob: "*.{mts,ts,js,mjs,json}"
+      run: |
+        npm run lint:fix {staged_files}
+        npm run fmt {staged_files}
+        git add {staged_files}
+

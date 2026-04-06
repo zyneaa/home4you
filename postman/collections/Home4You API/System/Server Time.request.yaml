@@ -1,0 +1,5 @@
+$kind: http-request
+description: Get the current server time.
+url: "{{baseUrl}}/api/v1/sys/time"
+method: GET
+order: 2000

@@ -1,0 +1,33 @@
+$kind: http-request
+description: Update an existing post. All fields are optional - only include
+  fields you want to update.
+url: "{{baseUrl}}/api/v1/post/update/:postId"
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    description: JWT access token
+  - key: Content-Type
+    value: application/json
+  - key: x-signature
+    value: "{{hmacSignature}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{hmacTimestamp}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{hmacNonce}}"
+    description: Unique nonce
+pathVariables:
+  - key: postId
+    value: "{{postId}}"
+    description: MongoDB ObjectId of the post (24 hex characters)
+body:
+  type: text
+  content: |-
+    {
+      "price": 425000,
+      "description": "Price reduced! Beautiful family home.",
+      "isAvailable": true
+    }
+order: 2000

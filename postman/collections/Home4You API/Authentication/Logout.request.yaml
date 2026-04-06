@@ -1,0 +1,72 @@
+$kind: http-request
+description: Logout the current user and invalidate the access token.
+url: "{{baseUrl}}/api/v1/auth/logout"
+method: POST
+headers:
+  Content-Type: application/json
+  x-signature: "{{computed_sig}}"
+  x-timestamp: "{{computed_ts}}"
+  x-nonce: "{{computed_nonce}}"
+body:
+  type: json
+  content: |-
+    {
+        "refreshToken": "{{REFRESH_TOKEN}}",
+        "deviceId": "{{DEVICE_ID}}"
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{ACCESS_TOKEN}}"
+scripts:
+  - type: beforeRequest
+    code: >-
+      const crypto = require('crypto-js');
+
+
+      const secret = pm.environment.get("HMAC_SECRET_KEY"); 
+
+      console.log(secret);
+
+
+      const timestamp = Date.now().toString();
+
+      const nonce = Math.random().toString(36).substring(2, 15);
+
+
+      let payload = "";
+
+      if (pm.request.method === 'GET') {
+          const fullUrl = pm.request.url.toString();
+          const resolvedUrl = pm.variables.replaceIn(fullUrl);
+          const urlObj = new URL(resolvedUrl);
+          payload = urlObj.pathname + urlObj.search;
+      } else {
+          const rawBody = pm.request.body.toString();
+          payload = pm.variables.replaceIn(rawBody);
+      }
+
+
+      const message = `${timestamp}:${nonce}:${payload}`; // Make sure order is
+      right
+
+      console.log(message);
+
+
+      const hash = crypto.HmacSHA256(message, secret);
+
+      const signature = crypto.enc.Hex.stringify(hash);
+
+
+      pm.variables.set("computed_sig", signature);
+
+      pm.variables.set("computed_ts", timestamp);
+
+      pm.variables.set("computed_nonce", nonce);``
+
+
+      console.log("Payload signed:", message);
+
+      console.log("Signature:", signature);
+    language: text/javascript
+order: 7000

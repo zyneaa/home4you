@@ -22,10 +22,13 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
+        working-directory: ./services/core
         run: npm ci
 
       - name: Check linting
+        working-directory: ./services/core
         run: npm run lint
 
       - name: Run Prettier format check
+        working-directory: ./services/core
         run: npm run fmt:check

@@ -1,0 +1,23 @@
+$kind: http-request
+description: Resend OTP to the specified email address.
+url: "{{baseUrl}}/api/v1/auth/send-otp"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: x-signature
+    value: "{{hmacSignature}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{hmacTimestamp}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{hmacNonce}}"
+    description: Unique nonce
+body:
+  type: text
+  content: |-
+    {
+      "email": "user@example.com"
+    }
+order: 5000
