@@ -18,12 +18,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20.x
           cache: "npm"
           cache-dependency-path: services/core/package-lock.json
-        with:
-          node-version: 22.x
-          cache: "npm"
 
       - name: Install dependencies
         working-directory: ./services/core
