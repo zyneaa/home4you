@@ -9,9 +9,11 @@ erDiagram
     User ||--o{ Property : "lists"
     User ||--o{ Post : "creates"
     User ||--|| UserProfile : "has"
-
+    User ||--o{ Interaction : "performs"
+    
     Property ||--o{ Post : "featured_in"
     AuthSession ||--o{ OtpCode : "linked_to"
+    Post ||--o{ Interaction : "targeted_by"
 
     User {
         ObjectId id PK
@@ -19,10 +21,12 @@ erDiagram
         string email UK
         boolean emailVerified
         string passwordHash
-        number failedLoginAttempts
-        date lockUntil
-        string_array roles
-        string phone
+        number tokens
+        number rating
+        boolean isVerified
+        point targetLocation
+        number interactionCount
+        object preferences
         date createdAt
         date updatedAt
     }
@@ -110,7 +114,20 @@ erDiagram
         number likeCount
         number commentCount
         number shareCount
+        number tokensSpent
+        date lastBoostAt
+        number staticPower
         date createdAt
         date updatedAt
+    }
+
+    Interaction {
+        ObjectId id PK
+        ObjectId userId FK
+        ObjectId postId FK
+        enum type
+        number value
+        number duration
+        date createdAt
     }
 ```

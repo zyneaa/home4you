@@ -1,0 +1,8 @@
+$kind: collection
+description: >-
+  Property management endpoints for creating and searching real estate
+  properties.
+
+
+  All endpoints require authentication (Bearer token) and HMAC signing headers.
+order: 6000

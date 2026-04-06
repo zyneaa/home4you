@@ -1,0 +1,22 @@
+$kind: http-request
+description: Get details of a specific property by its ID.
+url: "{{baseUrl}}/api/v1/property/find/:propertyId"
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    description: JWT access token
+  - key: x-signature
+    value: "{{hmacSignature}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{hmacTimestamp}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{hmacNonce}}"
+    description: Unique nonce
+pathVariables:
+  - key: propertyId
+    value: "{{propertyId}}"
+    description: MongoDB ObjectId of the property
+order: 2000

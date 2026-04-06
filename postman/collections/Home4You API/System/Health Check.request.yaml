@@ -1,0 +1,5 @@
+$kind: http-request
+description: Check if the API server is running and healthy.
+url: "{{baseUrl}}/api/v1/sys/health"
+method: GET
+order: 1000

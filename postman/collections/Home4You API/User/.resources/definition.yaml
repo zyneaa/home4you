@@ -1,0 +1,6 @@
+$kind: collection
+description: |-
+  User management endpoints for CRUD operations on user accounts.
+
+  All endpoints require authentication (Bearer token) and HMAC signing headers.
+order: 4000

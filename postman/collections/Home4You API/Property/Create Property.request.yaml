@@ -1,0 +1,55 @@
+$kind: http-request
+description: |-
+  Create a new property listing.
+
+  **Required fields:**
+  - `price`: Positive number
+  - `propertyType`: Type of property (apartment, house, condo, etc.)
+  - `transactionType`: sale or rent
+  - `locationReadable`: Human-readable address
+  - `locationCoordinates`: GeoJSON Point with [longitude, latitude]
+  - `isAvailable`: Boolean availability status
+url: "{{baseUrl}}/api/v1/property/new"
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+    description: JWT access token
+  - key: Content-Type
+    value: application/json
+  - key: x-signature
+    value: "{{hmacSignature}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{hmacTimestamp}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{hmacNonce}}"
+    description: Unique nonce
+body:
+  type: text
+  content: |-
+    {
+      "title": "Modern 3BR Apartment",
+      "price": 250000,
+      "currency": "USD",
+      "propertyType": "apartment",
+      "transactionType": "sale",
+      "locationReadable": "123 Main St, New York, NY",
+      "locationCoordinates": {
+        "type": "Point",
+        "coordinates": [-73.935242, 40.730610]
+      },
+      "city": "New York",
+      "country": "USA",
+      "bedrooms": 3,
+      "bathrooms": 2,
+      "areaSqFt": 1500,
+      "category": "residential",
+      "photos": ["https://example.com/photo1.jpg"],
+      "amenities": ["parking", "gym", "pool"],
+      "builtYear": 2020,
+      "furnished": 1,
+      "isAvailable": true
+    }
+order: 1000

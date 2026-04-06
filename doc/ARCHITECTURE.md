@@ -14,13 +14,14 @@ As outlined in [GEMINI.md](../GEMINI.md), this project follows several core arch
 ## Documentation Index
 
 ### 1. Data Models (ERD)
-
 The Entity Relationship Diagram (ERD) provides a high-level view of the database schema and the relationships between different entities.
-
 - [Database ERD](./ERD/DATABASE_ERD.md)
 
-### 2. Business Logic Flows (Sequence Diagrams)
+### 2. The Feed Algorithm
+Detailed mathematical model for the Home4You Discovery Engine, balancing explicit preferences with implicit behavioral data.
+- [Feed Algorithm Definition](./FEED_ALGORITHM.md)
 
+### 3. Business Logic Flows (Sequence Diagrams)
 Sequence diagrams help visualize the interaction between different components (Controllers, Services, Models, and External Systems like Redis/Mailers).
 
 - **Authentication Flows:**
@@ -33,4 +34,4 @@ Sequence diagrams help visualize the interaction between different components (C
 
 ---
 
-_Last updated: March 29, 2026_
+*Last updated: March 29, 2026*

@@ -1,0 +1,131 @@
+$kind: http-request
+description: Register a new user account. An OTP will be sent to the provided
+  email for verification.
+url: "{{baseUrl}}/api/v1/auth/register"
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: x-signature
+    value: "{{computed_sig}}"
+    description: HMAC-SHA256 signature
+  - key: x-timestamp
+    value: "{{computed_ts}}"
+    description: Unix timestamp
+  - key: x-nonce
+    value: "{{computed_nonce}}"
+    description: Unique nonce
+body:
+  type: text
+  content: |-
+    {
+        "userName": "{{USERNAME}}",
+        "channel": "{{EMAIL_CHANNEL}}",
+        "email": "{{EMAIL}}",
+        "password": "{{PASSWORD}}",
+        "deviceId": "{{DEVICE_ID}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: >-
+      const crypto = require('crypto-js');
+
+
+      const secret = pm.environment.get("HMAC_SECRET_KEY"); 
+
+      console.log(secret);
+
+
+      const timestamp = Date.now().toString();
+
+      const nonce = Math.random().toString(36).substring(2, 15);
+
+
+      let payload = "";
+
+      if (pm.request.method === 'GET') {
+          const fullUrl = pm.request.url.toString();
+          const resolvedUrl = pm.variables.replaceIn(fullUrl);
+          const urlObj = new URL(resolvedUrl);
+          payload = urlObj.pathname + urlObj.search;
+      } else {
+          const rawBody = pm.request.body.toString();
+          payload = pm.variables.replaceIn(rawBody);
+      }
+
+
+      const message = `${timestamp}:${nonce}:${payload}`; // Make sure order is
+      right
+
+      console.log(message);
+
+
+      const hash = crypto.HmacSHA256(message, secret);
+
+      const signature = crypto.enc.Hex.stringify(hash);
+
+
+      pm.variables.set("computed_sig", signature);
+
+      pm.variables.set("computed_ts", timestamp);
+
+      pm.variables.set("computed_nonce", nonce);``
+
+
+      console.log("Payload signed:", message);
+
+      console.log("Signature:", signature);
+    language: text/javascript
+  - type: afterResponse
+    code: >
+      const activeEnvName = pm.environment.name;
+
+      const TARGET_ENV_NAME = "";
+
+
+      if (TARGET_ENV_NAME && activeEnvName !== TARGET_ENV_NAME) {
+          console.warn(`[SKIP] Tokens were not updated. Current active environment is '${activeEnvName}', but the script is set to only run on '${TARGET_ENV_NAME}'.`);
+          return;
+      }
+
+
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+
+      if (pm.response.code < 200 || pm.response.code >= 300) {
+          console.error(`Request failed with status: ${pm.response.code}. Skipping token update.`);
+          return;
+      }
+
+
+      let jsonData;
+
+      try {
+          jsonData = pm.response.json();
+      } catch (e) {
+          pm.test("Response is valid JSON", false);
+          console.error("Failed to parse JSON response:", e);
+          return;
+      }
+
+
+      const newAccessToken = jsonData.accessToken;
+
+      pm.environment.set("accessToken", newAccessToken);
+
+      if (pm.environment.get("accessToken") === newAccessToken) {
+          pm.test("successfully updated accessToken", true);
+      }
+
+
+      const newRefreshToken = jsonData.refreshToken;
+
+      pm.environment.set("refreshToken", newRefreshToken);
+
+      if (pm.environment.get("refreshToken") === newRefreshToken) {
+          pm.test("successfully updated refreshToken", true);
+      }
+    language: text/javascript
+order: 1000

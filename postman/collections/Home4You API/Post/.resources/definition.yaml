@@ -1,0 +1,8 @@
+$kind: collection
+description: >-
+  Post management endpoints for creating, updating, and managing property
+  listing posts.
+
+
+  All endpoints require authentication (Bearer token) and HMAC signing headers.
+order: 7000
