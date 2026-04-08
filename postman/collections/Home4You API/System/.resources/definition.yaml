@@ -1,4 +1,0 @@
-$kind: collection
-description: System health and status endpoints. These are public and do not
-  require authentication or HMAC signing.
-order: 1000

@@ -1,6 +1,0 @@
-$kind: collection
-description: |-
-  User profile endpoints for managing the current authenticated user's profile.
-
-  All endpoints require authentication (Bearer token) and HMAC signing headers.
-order: 5000

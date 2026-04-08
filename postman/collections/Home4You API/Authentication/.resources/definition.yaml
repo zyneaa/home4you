@@ -1,8 +1,0 @@
-$kind: collection
-description: >-
-  User authentication endpoints including registration, login, OTP verification,
-  and token management.
-
-
-  All endpoints require HMAC signing headers except where noted.
-order: 2000
