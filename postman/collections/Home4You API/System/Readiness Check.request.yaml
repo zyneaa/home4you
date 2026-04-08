@@ -1,5 +1,0 @@
-$kind: http-request
-description: Check if the server is ready to accept requests (all dependencies connected).
-url: "{{baseUrl}}/api/v1/sys/readyz"
-method: GET
-order: 3000
