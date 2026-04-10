@@ -1,6 +1,6 @@
 import { model, Schema } from "mongoose";
 
-import { CurrencyType } from "./types/currencyType.type.mjs";
+import { CurrencyType } from "@shared/types"
 import type { IProperty } from "./types/property.types.mjs";
 import { PropertyCatagory } from "./types/propertyCatagory.type.mjs";
 import { PropertyType } from "./types/propertyType.type.mjs";
@@ -55,6 +55,7 @@ const PropertySchema = new Schema<IProperty>(
     },
 
     photos: { type: [String] },
+    videos: { type: [String] },
     amenities: { type: [String] },
 
     builtYear: { type: Number },

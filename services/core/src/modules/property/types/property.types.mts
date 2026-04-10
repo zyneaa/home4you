@@ -1,6 +1,6 @@
 import type mongoose from "mongoose";
 
-import type { CurrencyType } from "./currencyType.type.mjs";
+import type { CurrencyType } from "@shared/types";
 import type { PropertyCatagory } from "./propertyCatagory.type.mjs";
 import type { PropertyType } from "./propertyType.type.mjs";
 
@@ -29,6 +29,7 @@ export interface IProperty {
   category?: PropertyCatagory;
 
   photos?: string[];
+  videos?: string[];
 
   amenities?: string[];
 

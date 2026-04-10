@@ -31,6 +31,18 @@ const PostSchema = new Schema<IPost>(
       type: Number,
       required: true,
     },
+    currentComplianceScore: {
+      type: Number,
+      required: true,
+    },
+    currentActivityModifier: {
+      type: Number,
+      required: true,
+    },
+    boostScore: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

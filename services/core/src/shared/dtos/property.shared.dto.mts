@@ -1,4 +1,4 @@
-import { CurrencyType } from "@modules/property/types/currencyType.type.mjs";
+import { CurrencyType } from "@shared/types";
 import { PropertyCatagory } from "@modules/property/types/propertyCatagory.type.mjs";
 import { PropertyType } from "@modules/property/types/propertyType.type.mjs";
 import { z } from "zod";
