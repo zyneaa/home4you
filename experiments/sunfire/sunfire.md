@@ -78,7 +78,7 @@ $$B = Compliance\ Score + Activity\ Modifier + Boost_{Logic}$$
 ## 5. Combining All Together
 $$score_{norm} = percentile(score)$$
 * **$score$:** $log(1 + score_{raw})$
-* **$score_{raw}$:** = $(R_{final} \times F) \times (1 + B) + \mathbb{1}_{t < T_{new}} \, \text{Bonus}$
+* **$score_{raw}$:** $(R_{final} \times F) \times (1 + B) + \mathbb{1}_{t < T_{new}} \, \text{Bonus}$
 
 ---
 ## 6. The Unified Pipeline (Final Equation)

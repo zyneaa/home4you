@@ -1,6 +1,6 @@
+import type { CurrencyType } from "@shared/types";
 import type mongoose from "mongoose";
 
-import type { CurrencyType } from "@shared/types";
 import type { PropertyCatagory } from "./propertyCatagory.type.mjs";
 import type { PropertyType } from "./propertyType.type.mjs";
 
