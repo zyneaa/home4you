@@ -9,4 +9,8 @@ export interface IPost {
   likeCount: number;
   commentCount: number;
   shareCount: number;
+
+  currentComplianceScore: number;
+  currentActivityModifier: number;
+  boostScore: number;
 }

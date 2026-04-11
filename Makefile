@@ -105,26 +105,16 @@ setup: install
 # ------------------------------
 # Code commands
 # ------------------------------
-install:
-	npm install
 
-test:
-	npm test
+CORE_SERVICE_DIR := ./services/core
+core-lint:
+	cd $(CORE_SERVICE_DIR) && npm run lint:fix
 
-test-cov:
-	npm run test:cov
+core-fmt:
+	cd $(CORE_SERVICE_DIR) && npm run fmt
 
-lint:
-	npm run lint
-
-lint-fix:
-	npm run lint:fix
-
-fmt:
-	npm run fmt
-
-fmt-check:
-	npm run fmt:check
+core-check:
+	cd $(CORE_SERVICE_DIR) && npm run lint && npm run fmt:check
 
 # ------------------------------
 # Aliases
