@@ -73,6 +73,40 @@ const envSchema = z.object({
   SMTP_PASS: z.string(),
 
   HMAC_SECRET_KEY: z.string().min(32, "HMAC secret is required"),
+
+  // Cloudflare
+  R2_ACCOUNT_ID: z
+    .string()
+    .length(32, "Cloudflare Account ID must be exactly 32 chars")
+    .regex(/^[a-f0-9]+$/, "Account ID must be hexadecimal"),
+
+  R2_ACCESS_KEY_ID: z
+    .string()
+    .length(32, "R2 Access Key ID is usually 32 chars")
+    .trim(),
+
+  R2_SECRET_ACCESS_KEY: z
+    .string()
+    .min(64, "R2 Secret Access Key is too short")
+    .trim(),
+
+  R2_BUCKET_NAME: z
+    .string()
+    .min(3, "Bucket name is too short")
+    .max(63, "Bucket name exceeds S3 limits")
+    .regex(
+      /^[a-z0-9.-]+$/,
+      "Bucket name must be lowercase alphanumeric/hyphens",
+    ),
+
+  // Multimedia
+  MAX_PHOTO_SIZE: z.string().regex(/^\d+$/).transform(Number).default(5242880),
+
+  MAX_PHOTO_WIDTH: z.string().regex(/^\d+$/).transform(Number).default(1920),
+
+  MAX_PHOTO_HEIGHT: z.string().regex(/^\d+$/).transform(Number).default(1080),
+
+  MAX_PHOTO_FILES: z.string().regex(/^\d+$/).transform(Number).default(10),
 });
 
 const parseResult = envSchema.safeParse(process.env);

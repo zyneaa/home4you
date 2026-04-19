@@ -43,6 +43,11 @@ const PostSchema = new Schema<IPost>(
       type: Number,
       default: 0,
     },
+    qualityScore: {
+      type: Number,
+      default: 0,
+      required: true,
+    },
   },
   {
     timestamps: true,

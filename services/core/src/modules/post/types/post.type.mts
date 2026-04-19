@@ -13,4 +13,7 @@ export interface IPost {
   currentComplianceScore: number;
   currentActivityModifier: number;
   boostScore: number;
+
+  qualityScore: number;
+  propertySnapshot: object;
 }
