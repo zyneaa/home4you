@@ -5,6 +5,7 @@ import {
   requestSigningGuard,
 } from "@middlewares";
 import { v1AuthRoutes } from "@modules/auth/index.mjs";
+import { v1ImageRoutes } from "@modules/image/index.mjs";
 import { v1passwordForgetRoutes } from "@modules/password-forget/index.mjs";
 import { v1PostRoutes } from "@modules/post/index.mjs";
 import { v1PropertyRoutes } from "@modules/property/index.mjs";
@@ -52,4 +53,11 @@ routerV1.use(
   protect,
   authUserRateLimit,
   v1PostRoutes,
+);
+routerV1.use(
+  "/media",
+  requestSigningGuard,
+  protect,
+  authUserRateLimit,
+  v1ImageRoutes,
 );

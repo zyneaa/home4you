@@ -36,7 +36,7 @@ export const propertyBaseSchema = z.object({
 
   category: z.enum(PropertyCatagory).optional(),
 
-  photos: z.array(z.string()).optional(),
+  images: z.array(z.string()).optional(),
   amenities: z.array(z.string()).optional(),
 
   builtYear: z.number().int().optional(),

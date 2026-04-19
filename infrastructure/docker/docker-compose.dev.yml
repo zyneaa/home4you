@@ -51,6 +51,17 @@ services:
       SMTP_PASS: ${SMTP_PASS}
 
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
+
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      TOKEN_VALUE: ${TOKEN_VALUE}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+
+      MAX_PHOTO_SIZE: ${MAX_PHOTO_SIZE:-50000}
+      MAX_PHOTO_WIDTH: ${MAX_PHOTO_WIDTH:-1080}
+      MAX_PHOTO_HEIGHT: ${MAX_PHOTO_HEIGHT:-1980}
+      MAX_PHOTO_FILES: ${MAX_PHOTO_FILES:-10}
     volumes:
       - ../../services/core/src:/core/src:cached
       - ../../services/core/package.json:/core/package.json:cached
