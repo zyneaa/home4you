@@ -1,3 +1,4 @@
+import type { ImageExistenceCheckDto } from "@modules/media/dtos/imageExistenceCheck.dto.mjs";
 import type { ImageUploadCheckDto } from "@modules/media/dtos/imageUploadCheck.dto.mjs";
 import { mediaService } from "@modules/media/media.service.mjs";
 import { AppError } from "@utils";
@@ -28,7 +29,7 @@ export const mediaController = {
   },
 
   async confirmUpload(
-    req: Request<unknown, unknown, ImageUploadCheckDto>,
+    req: Request<unknown, unknown, ImageExistenceCheckDto>,
     res: Response,
     next: NextFunction,
   ) {
@@ -37,9 +38,9 @@ export const mediaController = {
         throw new AppError("Unauthorized", 401);
       }
 
-      const validatedBody = req.validated!.body as ImageUploadCheckDto;
+      const validatedBody = req.validated!.body as ImageExistenceCheckDto;
 
-      const signed = await mediaService.signMultipleImages(
+      const signed = await mediaService.confirmMediaUploads(
         req.user.id,
         validatedBody,
       );

@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
 
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "@config";
 import { env } from "@shared/validations";
 import { AppError } from "@utils";
 
+import type { ImageExistenceCheckDto } from "./dtos/imageExistenceCheck.dto.mjs";
 import type {
   ImageUploadCheckDto,
   SingleImageDto,
@@ -93,6 +94,60 @@ export const mediaService = {
       uploadId,
       expiresIn: 600,
       files: results,
+    };
+  },
+
+  async verifyMediaExistence(images: Array<{ key: string }>) {
+    const checks = images.map(async image => {
+      const { key } = image;
+
+      try {
+        await r2.send(
+          new HeadObjectCommand({
+            Bucket: env.R2_BUCKET_NAME,
+            Key: key,
+          }),
+        );
+        return { key, exists: true };
+      } catch (err: any) {
+        if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+          return { key, exists: false };
+        }
+        throw err;
+      }
+    });
+
+    return Promise.all(checks);
+  },
+
+  async confirmMediaUploads(userId: string, dto: ImageExistenceCheckDto) {
+    const imageObjects = dto.images;
+    const rawKeys = imageObjects.map(img => img.key);
+
+    const results = await this.verifyMediaExistence(imageObjects);
+    const missing = results.filter(r => !r.exists).map(r => r.key);
+
+    if (missing.length > 0) {
+      throw new AppError(
+        `Some files were not found in storage: ${missing.join(", ")}`,
+        404,
+      );
+    }
+
+    const updateResult = await Media.updateMany(
+      {
+        userId,
+        key: { $in: rawKeys },
+        status: "PENDING",
+      },
+      {
+        $set: { status: "UPLOADED" },
+      },
+    );
+
+    return {
+      confirmedCount: updateResult.modifiedCount,
+      keys: rawKeys,
     };
   },
 };
