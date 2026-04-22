@@ -16,6 +16,7 @@ const PostSchema = new Schema<IPost>(
       required: true,
       index: true,
     },
+
     description: {
       type: String,
     },
@@ -31,6 +32,7 @@ const PostSchema = new Schema<IPost>(
       type: Number,
       required: true,
     },
+
     currentComplianceScore: {
       type: Number,
       required: true,

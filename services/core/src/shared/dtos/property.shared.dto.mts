@@ -36,7 +36,12 @@ export const propertyBaseSchema = z.object({
 
   category: z.enum(PropertyCatagory).optional(),
 
-  images: z.array(z.string()).optional(),
+  images: z
+    .array(z.string().regex(/^media\/u\/[^/]+\/p\/[^/]+\/[^/]+\/raw$/))
+    .min(1)
+    .max(10)
+    .optional(),
+
   amenities: z.array(z.string()).optional(),
 
   builtYear: z.number().int().optional(),

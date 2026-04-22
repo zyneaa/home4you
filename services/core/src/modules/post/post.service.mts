@@ -1,5 +1,8 @@
+import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import { r2 } from "@config";
 import { Property } from "@modules/property/property.model.mjs";
-import { AppError } from "@utils";
+import { env } from "@shared/validations";
+import { AppError, logger } from "@utils";
 import mongoose from "mongoose";
 
 import type { CreatePostDto } from "./dtos/addPost.dto.mjs";
@@ -19,6 +22,31 @@ export const postService = {
   async createPost(userId: string, dto: CreatePostDto) {
     const session = await mongoose.startSession();
     try {
+      if (dto.images && dto.images.length > 0) {
+        const isOwner = dto.images.every(key =>
+          key.startsWith(`media/u/${userId}/p/${dto.postId}/`),
+        );
+        if (!isOwner) {
+          throw new AppError("Forbidden: Media path mismatch", 403);
+        }
+
+        try {
+          const existenceChecks = dto.images.map(key =>
+            r2.send(
+              new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key }),
+            ),
+          );
+          logger.info(dto.images.map(k => k));
+          await Promise.all(existenceChecks);
+        } catch (err) {
+          logger.error(err);
+          throw new AppError(
+            `One or more photos were not found in storage`,
+            400,
+          );
+        }
+      }
+
       let postArray: any[] = [];
       await session.withTransaction(async () => {
         const properties = await Property.create(
@@ -40,12 +68,18 @@ export const postService = {
         postArray = await Post.create(
           [
             {
+              _id: dto.postId,
               listedBy: userId,
               property: createdProperty._id,
+
               description: dto.description,
               likeCount: 0,
               commentCount: 0,
               shareCount: 0,
+
+              currentComplianceScore: 10, // placeholder
+              currentActivityModifier: 10, // placeholder
+              qualityScore: 10, // placeholder
             },
           ],
           { session },

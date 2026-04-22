@@ -13,6 +13,8 @@ const singleImageSchema = z.object({
 
   height: z.number().int().positive().max(env.MAX_PHOTO_HEIGHT),
 
+  order: z.number().min(1).max(env.MAX_PHOTO_FILES),
+
   isCompressed: z.boolean().optional(),
 });
 

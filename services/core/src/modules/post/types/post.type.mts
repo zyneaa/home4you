@@ -16,4 +16,6 @@ export interface IPost {
 
   qualityScore: number;
   propertySnapshot: object;
+
+  postStatus: string;
 }

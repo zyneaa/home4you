@@ -1,7 +1,7 @@
 import { validateDto } from "@middlewares";
 import { Router } from "express";
 
-import { imageController } from "../controllers/v1/image.controller.mjs";
+import { mediaController } from "../controllers/v1/media.controller.mjs";
 import { imageUploadCheckDtoSchema } from "../dtos/imageUploadCheck.dto.mjs";
 
 const router = Router();
@@ -9,7 +9,7 @@ const router = Router();
 router.post(
   "/sign",
   validateDto(imageUploadCheckDtoSchema),
-  imageController.signImageUpload,
+  mediaController.signImageUpload,
 );
 
 export default router;
