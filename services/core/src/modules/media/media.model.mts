@@ -12,6 +12,12 @@ const MediaSchema = new Schema<IMedia>(
       index: true,
     },
 
+    uploadId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+
     mediaId: {
       type: String,
       required: true,
