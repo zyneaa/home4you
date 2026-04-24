@@ -3,6 +3,7 @@ import type mongoose from "mongoose";
 
 export interface IMedia {
   userId: mongoose.Types.ObjectId;
+  uploadId: string;
   mediaId: string;
   mediaOwnerId: mongoose.Types.ObjectId;
   mediaOwnerType: MediaOwnerType;

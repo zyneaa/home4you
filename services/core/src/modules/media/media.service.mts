@@ -5,6 +5,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "@config";
 import { env } from "@shared/validations";
 import { AppError } from "@utils";
+import type { ClientSession } from "mongoose";
+import mongoose from "mongoose";
 
 import type { ImageExistenceCheckDto } from "./dtos/imageExistenceCheck.dto.mjs";
 import type {
@@ -25,6 +27,7 @@ export const mediaService = {
     userId: string,
     uploadId: string,
     image: SingleImageDto,
+    session: ClientSession,
   ) {
     const { key, mediaId } = await this.generateKey(userId, uploadId);
 
@@ -36,18 +39,23 @@ export const mediaService = {
       throw new AppError("Invalid image type", 400);
     }
 
-    await Media.create({
-      mediaId,
-      userId,
-      mediaOwnerId: null, // will be linked on post confirm
-      mediaOwnerType: "POST",
-      mediaType: "image",
-      mimeType: contentType,
-      key,
-      status: "PENDING",
-      order: image.order ?? 0,
-      size: image.fileSize ?? 0,
-    });
+    await Media.create(
+      [
+        {
+          mediaId,
+          userId,
+          mediaOwnerId: null,
+          mediaOwnerType: "POST",
+          mediaType: "image",
+          mimeType: contentType,
+          key,
+          status: "PENDING",
+          order: image.order ?? 0,
+          size: image.fileSize ?? 0,
+        },
+      ],
+      { session },
+    );
 
     const command = new PutObjectCommand({
       Bucket: env.R2_BUCKET_NAME,
@@ -85,16 +93,41 @@ export const mediaService = {
       seen.add(key);
     }
 
-    const promises = images.map(image =>
-      this.signSingleImage(userId, uploadId, image),
-    );
-    const results = await Promise.all(promises);
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    return {
-      uploadId,
-      expiresIn: 600,
-      files: results,
-    };
+    try {
+      const isUploadUsed = await Media.exists({
+        uploadId,
+        status: { $in: ["UPLOADED", "CLAIMED"] },
+      }).session(session);
+
+      if (isUploadUsed) {
+        throw new AppError(
+          "This upload session is already finalized. Start a new one.",
+          400,
+        );
+      }
+
+      const promises = images.map(image =>
+        this.signSingleImage(userId, uploadId, image, session),
+      );
+
+      const results = await Promise.all(promises);
+
+      await session.commitTransaction();
+
+      return {
+        uploadId,
+        expiresIn: 600,
+        files: results,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   },
 
   async verifyMediaExistence(images: Array<{ key: string }>) {
@@ -149,5 +182,14 @@ export const mediaService = {
       confirmedCount: updateResult.modifiedCount,
       keys: rawKeys,
     };
+  },
+
+  async checkUploadId(uploadId: string) {
+    const isIdUsed = await Media.exists({
+      uploadId,
+      status: { $in: ["UPLOADED", "CLAIMED"] },
+    });
+
+    return isIdUsed;
   },
 };
