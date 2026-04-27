@@ -1,16 +1,28 @@
-import type { MediaOwnerType, MimeType, MediaStatus } from "@shared/types";
+import type {
+  MediaOwnerType,
+  MimeType,
+  MediaUploadStatus,
+  MediaProcessingStatus,
+} from "@shared/types";
 import type mongoose from "mongoose";
 
 export interface IMedia {
   userId: mongoose.Types.ObjectId;
+
   uploadId: string;
   mediaId: string;
+
   mediaOwnerId: mongoose.Types.ObjectId;
+  isClaimed: boolean;
   mediaOwnerType: MediaOwnerType;
+
   mediaType: "image" | "video";
   mimeType: MimeType;
+
   key: string;
-  status: MediaStatus;
+  uploadStatus: MediaUploadStatus;
+  processingStatus: MediaProcessingStatus;
+
   order?: number;
   size: number;
   width?: number;

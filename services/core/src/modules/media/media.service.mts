@@ -1,12 +1,16 @@
 import { randomUUID } from "crypto";
 
-import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "@config";
 import { env } from "@shared/validations";
 import { AppError } from "@utils";
-import type { ClientSession } from "mongoose";
 import mongoose from "mongoose";
+import pLimit from "p-limit";
 
 import type { ImageExistenceCheckDto } from "./dtos/imageExistenceCheck.dto.mjs";
 import type {
@@ -15,8 +19,10 @@ import type {
 } from "./dtos/imageUploadCheck.dto.mjs";
 import { Media } from "./media.model.mjs";
 
+const limit = pLimit(5);
+
 export const mediaService = {
-  async generateKey(userId: string, uploadId: string) {
+  generateKey(userId: string, uploadId: string) {
     const mediaId = randomUUID();
     const key = `media/u/${userId}/p/${uploadId}/${mediaId}/raw`;
 
@@ -27,169 +33,263 @@ export const mediaService = {
     userId: string,
     uploadId: string,
     image: SingleImageDto,
-    session: ClientSession,
   ) {
-    const { key, mediaId } = await this.generateKey(userId, uploadId);
+    const { key, mediaId } = this.generateKey(userId, uploadId);
 
-    const contentType =
-      typeof image.mimeType === "string"
-        ? image.mimeType
-        : (image.mimeType as any).valueOf();
-    if (!contentType.startsWith("image/")) {
+    if (!image.mimeType.startsWith("image/")) {
       throw new AppError("Invalid image type", 400);
     }
-
-    await Media.create(
-      [
-        {
-          mediaId,
-          userId,
-          mediaOwnerId: null,
-          mediaOwnerType: "POST",
-          mediaType: "image",
-          mimeType: contentType,
-          key,
-          status: "PENDING",
-          order: image.order ?? 0,
-          size: image.fileSize ?? 0,
-        },
-      ],
-      { session },
-    );
 
     const command = new PutObjectCommand({
       Bucket: env.R2_BUCKET_NAME,
       Key: key,
-      ContentType: contentType,
+      ContentType: image.mimeType,
+      ContentLength: env.MAX_PHOTO_SIZE,
     });
 
-    // URL expires in 600 seconds (10 mins)
     const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
 
-    // Return the key so the client/TS server can track this asset in the DB
-    return {
-      mediaId: key.split("/").at(-2), // optional debug id
+    const doc = {
+      uploadId,
+      mediaId,
+      userId,
+      mediaOwnerId: null,
+      mediaOwnerType: "POST",
+      mediaType: "image",
+      mimeType: image.mimeType,
+      key,
+      status: "PENDING",
+      order: image.order ?? 1,
+      size: image.fileSize ?? 0,
+    };
+
+    const response = {
+      mediaId,
       key,
       signedUrl,
       fileName: image.fileName,
       order: image.order,
-      mimeType: contentType,
+      mimeType: image.mimeType,
     };
+
+    return { doc, response };
   },
 
   async signMultipleImages(userId: string, data: ImageUploadCheckDto) {
     const { images, uploadId } = data;
 
-    if (!images || images.length === 0) {
+    if (!images?.length) {
       throw new AppError("No images provided", 400);
     }
 
     const seen = new Set<string>();
     for (const img of images) {
-      const key = `${img.fileName}-${img.mimeType}`;
-      if (seen.has(key)) {
+      const sig = `${img.fileName}-${img.mimeType}-${img.fileSize}`;
+      if (seen.has(sig)) {
         throw new AppError("Duplicate images detected", 400);
       }
-      seen.add(key);
+      seen.add(sig);
     }
 
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      const isUploadUsed = await Media.exists({
+      const used = await Media.exists({
         uploadId,
-        status: { $in: ["UPLOADED", "CLAIMED"] },
+        isClaimed: true,
+        uploadStatus: { $in: ["UPLOADED"] },
       }).session(session);
 
-      if (isUploadUsed) {
-        throw new AppError(
-          "This upload session is already finalized. Start a new one.",
-          400,
-        );
+      if (used) {
+        throw new AppError("Upload session already finalized", 400);
       }
 
-      const promises = images.map(image =>
-        this.signSingleImage(userId, uploadId, image, session),
+      const signed = await Promise.all(
+        images.map((img: SingleImageDto) =>
+          this.signSingleImage(userId, uploadId, img),
+        ),
       );
 
-      const results = await Promise.all(promises);
+      const docs = signed.map(s => s.doc);
+      const responses = signed.map(s => s.response);
+
+      await Media.insertMany(docs, { session });
 
       await session.commitTransaction();
 
       return {
         uploadId,
         expiresIn: 600,
-        files: results,
+        files: responses,
       };
-    } catch (error) {
+    } catch (err) {
       await session.abortTransaction();
-      throw error;
+      throw err;
     } finally {
       session.endSession();
     }
   },
 
-  async verifyMediaExistence(images: Array<{ key: string }>) {
-    const checks = images.map(async image => {
-      const { key } = image;
+  async verifyMediaExistence(keys: string[]) {
+    const checks = keys.map(key =>
+      limit(async () => {
+        try {
+          const res = await r2.send(
+            new HeadObjectCommand({
+              Bucket: env.R2_BUCKET_NAME,
+              Key: key,
+            }),
+          );
 
-      try {
-        await r2.send(
-          new HeadObjectCommand({
-            Bucket: env.R2_BUCKET_NAME,
-            Key: key,
-          }),
-        );
-        return { key, exists: true };
-      } catch (err: any) {
-        if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
-          return { key, exists: false };
+          return {
+            key,
+            exists: true,
+            size: res.ContentLength ?? 0,
+          };
+        } catch (err: any) {
+          if (
+            err.name === "NoSuchKey" ||
+            err.name === "NotFound" ||
+            err.$metadata?.httpStatusCode === 404
+          ) {
+            return { key, exists: false, size: 0 };
+          }
+          throw err;
         }
-        throw err;
-      }
-    });
+      }),
+    );
 
     return Promise.all(checks);
   },
 
   async confirmMediaUploads(userId: string, dto: ImageExistenceCheckDto) {
-    const imageObjects = dto.images;
-    const rawKeys = imageObjects.map(img => img.key);
+    const rawKeys = dto.images.map(i => i.key);
 
-    const results = await this.verifyMediaExistence(imageObjects);
-    const missing = results.filter(r => !r.exists).map(r => r.key);
+    const medias = await Media.find({
+      userId,
+      key: { $in: rawKeys },
+      uploadStatus: "PENDING",
+    }).lean();
 
-    if (missing.length > 0) {
-      throw new AppError(
-        `Some files were not found in storage: ${missing.join(", ")}`,
-        404,
-      );
+    if (!medias.length) {
+      throw new AppError("No pending media found", 404);
     }
 
-    const updateResult = await Media.updateMany(
+    const mediaMap = new Map(medias.map(m => [m.key, m]));
+
+    const existenceResults = await this.verifyMediaExistence(rawKeys);
+    const existenceMap = new Map(existenceResults.map(r => [r.key, r]));
+
+    const checks = rawKeys.map(key =>
+      limit(async () => {
+        const media = mediaMap.get(key);
+        if (!media) {
+          return { key, error: "not_found_in_db" };
+        }
+
+        const exist = existenceMap.get(key);
+        if (!exist?.exists) {
+          return { key, error: "not_uploaded" };
+        }
+
+        if (media.size && exist.size !== media.size) {
+          return { key, error: "size_mismatch" };
+        }
+
+        const valid = await this.verifyFileSignature(key, media.mimeType);
+
+        if (!valid) {
+          return { key, error: "invalid_signature" };
+        }
+
+        return { key, error: null };
+      }),
+    );
+
+    const results = await Promise.all(checks);
+
+    const has = (type: string): boolean => results.some(r => r.error === type);
+
+    if (has("not_found_in_db")) {
+      throw new AppError("Unauthorized media detected", 404);
+    }
+
+    if (has("not_uploaded")) {
+      throw new AppError("Some files were not uploaded", 400);
+    }
+
+    if (has("size_mismatch")) {
+      throw new AppError("File size mismatch detected", 400);
+    }
+
+    if (has("invalid_signature")) {
+      throw new AppError("Invalid file signature detected", 400);
+    }
+
+    const update = await Media.updateMany(
       {
         userId,
-        key: { $in: rawKeys },
-        status: "PENDING",
+        key: { uploadStatus: rawKeys },
+        uploadStatus: "PENDING",
       },
-      {
-        $set: { status: "UPLOADED" },
-      },
+      { $set: { uploadStatus: "UPLOADED" } },
     );
 
     return {
-      confirmedCount: updateResult.modifiedCount,
+      confirmedCount: update.modifiedCount,
       keys: rawKeys,
     };
   },
 
-  async checkUploadId(uploadId: string) {
-    const isIdUsed = await Media.exists({
-      uploadId,
-      status: { $in: ["UPLOADED", "CLAIMED"] },
-    });
+  async verifyFileSignature(key: string, mime: string) {
+    try {
+      const res = await r2.send(
+        new GetObjectCommand({
+          Bucket: env.R2_BUCKET_NAME,
+          Key: key,
+          Range: "bytes=0-11",
+        }),
+      );
 
-    return isIdUsed;
+      const bytes = await res.Body?.transformToByteArray();
+      if (!bytes) {
+        return false;
+      }
+
+      return this.validateMagicNumber(Buffer.from(bytes), mime);
+    } catch {
+      return false;
+    }
+  },
+
+  validateMagicNumber(buffer: Buffer, mime: string) {
+    if (!buffer.length) {
+      return false;
+    }
+
+    const hex = buffer.toString("hex").toUpperCase();
+
+    if (mime === "image/jpeg" || mime === "image/jpg") {
+      return hex.startsWith("FFD8FF");
+    }
+
+    if (mime === "image/png") {
+      return hex.startsWith("89504E47");
+    }
+
+    if (mime === "image/webp") {
+      return hex.startsWith("52494646") && hex.slice(16, 24) === "57454250";
+    }
+
+    return false;
+  },
+
+  async checkUploadId(uploadId: string) {
+    return !!(await Media.exists({
+      uploadId,
+      isClaimed: true,
+      uploadStatus: { $in: ["UPLOADED"] },
+    }));
   },
 };
