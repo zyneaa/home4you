@@ -1,6 +1,5 @@
-export enum MediaStatus {
+export enum MediaUploadStatus {
   PENDING = "PENDING",
-  PROCESSING = "PROCESSING",
   UPLOADED = "UPLOADED",
   FAILED = "FAILED",
 }

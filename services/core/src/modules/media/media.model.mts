@@ -1,4 +1,4 @@
-import { MediaStatus } from "@shared/types";
+import { MediaProcessingStatus, MediaUploadStatus } from "@shared/types";
 import { Schema, model } from "mongoose";
 
 import type { IMedia } from "./types/media.type.mjs";
@@ -29,6 +29,11 @@ const MediaSchema = new Schema<IMedia>(
       index: true,
     },
 
+    isClaimed: {
+      type: Boolean,
+      required: true
+    },
+
     mediaOwnerType: {
       type: String,
       enum: ["POST", "PROFILE_PICTURE"],
@@ -53,12 +58,19 @@ const MediaSchema = new Schema<IMedia>(
       unique: true,
     },
 
-    status: {
+    uploadStatus: {
       type: String,
-      enum: ["PENDING", "PROCESSING", "UPLOADED", "FAILED"],
+      enum: ["PENDING", "UPLOADED", "FAILED"],
       required: true,
-      default: MediaStatus.PENDING,
+      default: MediaUploadStatus.PENDING,
       index: true,
+    },
+
+    processingStatus: {
+      type: String,
+      enum: ["PENDING", "PROCESSING", "DONE", "FAILED"],
+      required: true,
+      default: MediaProcessingStatus.PENDING
     },
 
     order: {
@@ -105,8 +117,14 @@ const MediaSchema = new Schema<IMedia>(
   },
 );
 
-MediaSchema.index({ mediaOwnerId: 1, mediaOwnerType: 1 });
-MediaSchema.index({ userId: 1, status: 1 });
-MediaSchema.index({ key: 1 }, { unique: true });
+MediaSchema.index({
+  mediaOwnerId: 1,
+  mediaOwnerType: 1,
+  isDeleted: 1,
+  order: 1
+});
+MediaSchema.index({ userId: 1, uploadStatus: 1 });
+MediaSchema.index({ uploadStatus: 1, isClaimed: 1 });
+MediaSchema.index({ uploadStatus: 1, createdAt: 1 });
 
 export const Media = model<IMedia>("Media", MediaSchema);
