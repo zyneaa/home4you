@@ -1,4 +1,9 @@
-import type { MediaOwnerType, MimeType, MediaUploadStatus, MediaProcessingStatus } from "@shared/types";
+import type {
+  MediaOwnerType,
+  MimeType,
+  MediaUploadStatus,
+  MediaProcessingStatus,
+} from "@shared/types";
 import type mongoose from "mongoose";
 
 export interface IMedia {

@@ -31,7 +31,7 @@ const MediaSchema = new Schema<IMedia>(
 
     isClaimed: {
       type: Boolean,
-      required: true
+      required: true,
     },
 
     mediaOwnerType: {
@@ -70,7 +70,7 @@ const MediaSchema = new Schema<IMedia>(
       type: String,
       enum: ["PENDING", "PROCESSING", "DONE", "FAILED"],
       required: true,
-      default: MediaProcessingStatus.PENDING
+      default: MediaProcessingStatus.PENDING,
     },
 
     order: {
@@ -121,7 +121,7 @@ MediaSchema.index({
   mediaOwnerId: 1,
   mediaOwnerType: 1,
   isDeleted: 1,
-  order: 1
+  order: 1,
 });
 MediaSchema.index({ userId: 1, uploadStatus: 1 });
 MediaSchema.index({ uploadStatus: 1, isClaimed: 1 });

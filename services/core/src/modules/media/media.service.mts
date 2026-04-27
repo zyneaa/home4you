@@ -1,19 +1,23 @@
 import { randomUUID } from "crypto";
+
 import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import pLimit from "p-limit";
-import mongoose from "mongoose";
-
 import { r2 } from "@config";
 import { env } from "@shared/validations";
 import { AppError } from "@utils";
-import { Media } from "./media.model.mjs";
-import type { ImageUploadCheckDto, SingleImageDto } from "./dtos/imageUploadCheck.dto.mjs";
+import mongoose from "mongoose";
+import pLimit from "p-limit";
+
 import type { ImageExistenceCheckDto } from "./dtos/imageExistenceCheck.dto.mjs";
+import type {
+  ImageUploadCheckDto,
+  SingleImageDto,
+} from "./dtos/imageUploadCheck.dto.mjs";
+import { Media } from "./media.model.mjs";
 
 const limit = pLimit(5);
 
@@ -25,7 +29,11 @@ export const mediaService = {
     return { key, mediaId };
   },
 
-  async signSingleImage(userId: string, uploadId: string, image: SingleImageDto) {
+  async signSingleImage(
+    userId: string,
+    uploadId: string,
+    image: SingleImageDto,
+  ) {
     const { key, mediaId } = this.generateKey(userId, uploadId);
 
     if (!image.mimeType.startsWith("image/")) {
@@ -36,7 +44,7 @@ export const mediaService = {
       Bucket: env.R2_BUCKET_NAME,
       Key: key,
       ContentType: image.mimeType,
-      ContentLength: env.MAX_PHOTO_SIZE
+      ContentLength: env.MAX_PHOTO_SIZE,
     });
 
     const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
@@ -99,12 +107,12 @@ export const mediaService = {
 
       const signed = await Promise.all(
         images.map((img: SingleImageDto) =>
-          this.signSingleImage(userId, uploadId, img)
-        )
+          this.signSingleImage(userId, uploadId, img),
+        ),
       );
 
-      const docs = signed.map((s) => s.doc);
-      const responses = signed.map((s) => s.response);
+      const docs = signed.map(s => s.doc);
+      const responses = signed.map(s => s.response);
 
       await Media.insertMany(docs, { session });
 
@@ -124,14 +132,14 @@ export const mediaService = {
   },
 
   async verifyMediaExistence(keys: string[]) {
-    const checks = keys.map((key) =>
+    const checks = keys.map(key =>
       limit(async () => {
         try {
           const res = await r2.send(
             new HeadObjectCommand({
               Bucket: env.R2_BUCKET_NAME,
               Key: key,
-            })
+            }),
           );
 
           return {
@@ -149,14 +157,14 @@ export const mediaService = {
           }
           throw err;
         }
-      })
+      }),
     );
 
     return Promise.all(checks);
   },
 
   async confirmMediaUploads(userId: string, dto: ImageExistenceCheckDto) {
-    const rawKeys = dto.images.map((i) => i.key);
+    const rawKeys = dto.images.map(i => i.key);
 
     const medias = await Media.find({
       userId,
@@ -168,40 +176,40 @@ export const mediaService = {
       throw new AppError("No pending media found", 404);
     }
 
-    const mediaMap = new Map(medias.map((m) => [m.key, m]));
+    const mediaMap = new Map(medias.map(m => [m.key, m]));
 
     const existenceResults = await this.verifyMediaExistence(rawKeys);
-    const existenceMap = new Map(
-      existenceResults.map((r) => [r.key, r])
-    );
+    const existenceMap = new Map(existenceResults.map(r => [r.key, r]));
 
-    const checks = rawKeys.map((key) =>
+    const checks = rawKeys.map(key =>
       limit(async () => {
         const media = mediaMap.get(key);
-        if (!media) return { key, error: "not_found_in_db" };
+        if (!media) {
+          return { key, error: "not_found_in_db" };
+        }
 
         const exist = existenceMap.get(key);
-        if (!exist?.exists) return { key, error: "not_uploaded" };
+        if (!exist?.exists) {
+          return { key, error: "not_uploaded" };
+        }
 
         if (media.size && exist.size !== media.size) {
           return { key, error: "size_mismatch" };
         }
 
-        const valid = await this.verifyFileSignature(
-          key,
-          media.mimeType
-        );
+        const valid = await this.verifyFileSignature(key, media.mimeType);
 
-        if (!valid) return { key, error: "invalid_signature" };
+        if (!valid) {
+          return { key, error: "invalid_signature" };
+        }
 
         return { key, error: null };
-      })
+      }),
     );
 
     const results = await Promise.all(checks);
 
-    const has = (type: string) =>
-      results.some((r) => r.error === type);
+    const has = (type: string): boolean => results.some(r => r.error === type);
 
     if (has("not_found_in_db")) {
       throw new AppError("Unauthorized media detected", 404);
@@ -225,7 +233,7 @@ export const mediaService = {
         key: { uploadStatus: rawKeys },
         uploadStatus: "PENDING",
       },
-      { $set: { uploadStatus: "UPLOADED" } }
+      { $set: { uploadStatus: "UPLOADED" } },
     );
 
     return {
@@ -241,11 +249,13 @@ export const mediaService = {
           Bucket: env.R2_BUCKET_NAME,
           Key: key,
           Range: "bytes=0-11",
-        })
+        }),
       );
 
       const bytes = await res.Body?.transformToByteArray();
-      if (!bytes) return false;
+      if (!bytes) {
+        return false;
+      }
 
       return this.validateMagicNumber(Buffer.from(bytes), mime);
     } catch {
@@ -254,7 +264,9 @@ export const mediaService = {
   },
 
   validateMagicNumber(buffer: Buffer, mime: string) {
-    if (!buffer.length) return false;
+    if (!buffer.length) {
+      return false;
+    }
 
     const hex = buffer.toString("hex").toUpperCase();
 
@@ -267,10 +279,7 @@ export const mediaService = {
     }
 
     if (mime === "image/webp") {
-      return (
-        hex.startsWith("52494646") &&
-        hex.slice(16, 24) === "57454250"
-      );
+      return hex.startsWith("52494646") && hex.slice(16, 24) === "57454250";
     }
 
     return false;
