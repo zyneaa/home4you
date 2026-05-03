@@ -9,7 +9,7 @@
 - User press "Post" button
 - User post to /api/v1/post/new with mediaId(s) and necessary post info
 - Core checks the mediaId(s) and create the post
-- User uploads media objs to Cloudflare with signed URLs
+- User uploads media objs to AWS with signed URLs
 
 
 ---
@@ -22,7 +22,7 @@ This document describes the end-to-end media upload and processing pipeline for 
 
 ## Overview
 
-The system uses **pre-signed URLs** to allow clients to upload media directly to object storage (Cloudflare R2), reducing backend load and improving scalability.
+The system uses **pre-signed URLs** to allow clients to upload media directly to object storage (AWS S3), reducing backend load and improving scalability.
 
 The pipeline ensures:
 
@@ -152,7 +152,7 @@ Content-Type: image/jpeg
 
 ### 7. Upload Confirmation
 
-The core service receive a webhook call from R2 worker to verify that the media is uploaded
+The core service receive a webhook call from S3 worker to verify that the media is uploaded
 
 **Endpoint**
 
@@ -310,7 +310,7 @@ media/u/{userId}/p/{postId}/{mediaId}/raw
 
 * Resumable uploads (for large videos)
 * Media deduplication (checksum-based)
-* CDN optimization (Cloudflare edge caching)
+* CDN optimization (AWS edge caching)
 * Signed GET URLs vs public access strategy
 * Real-time upload progress tracking
 

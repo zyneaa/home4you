@@ -6,7 +6,7 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { r2 } from "@config";
+import { s3 } from "@config";
 import { env } from "@shared/validations";
 import { AppError } from "@utils";
 import mongoose from "mongoose";
@@ -41,18 +41,22 @@ export const mediaService = {
     }
 
     const command = new PutObjectCommand({
-      Bucket: env.R2_BUCKET_NAME,
+      Bucket: env.AWS_S3_BUCKET_NAME,
       Key: key,
       ContentType: image.mimeType,
-      ContentLength: env.MAX_PHOTO_SIZE,
+      ChecksumAlgorithm: undefined,
+      // ContentLength: env.MAX_PHOTO_SIZE,
     });
 
-    const signedUrl = await getSignedUrl(r2, command, { expiresIn: 600 });
+    const signedUrl = await getSignedUrl(s3, command, {
+      expiresIn: 600,
+    });
 
     const doc = {
       uploadId,
       mediaId,
       userId,
+      isClaimed: false,
       mediaOwnerId: null,
       mediaOwnerType: "POST",
       mediaType: "image",
@@ -77,6 +81,11 @@ export const mediaService = {
 
   async signMultipleImages(userId: string, data: ImageUploadCheckDto) {
     const { images, uploadId } = data;
+
+    const isExist = await this.checkUploadId(uploadId);
+    if (isExist) {
+      throw new AppError("Media already exist", 409);
+    }
 
     if (!images?.length) {
       throw new AppError("No images provided", 400);
@@ -135,9 +144,9 @@ export const mediaService = {
     const checks = keys.map(key =>
       limit(async () => {
         try {
-          const res = await r2.send(
+          const res = await s3.send(
             new HeadObjectCommand({
-              Bucket: env.R2_BUCKET_NAME,
+              Bucket: env.AWS_S3_BUCKET_NAME,
               Key: key,
             }),
           );
@@ -244,9 +253,9 @@ export const mediaService = {
 
   async verifyFileSignature(key: string, mime: string) {
     try {
-      const res = await r2.send(
+      const res = await s3.send(
         new GetObjectCommand({
-          Bucket: env.R2_BUCKET_NAME,
+          Bucket: env.AWS_S3_BUCKET_NAME,
           Key: key,
           Range: "bytes=0-11",
         }),

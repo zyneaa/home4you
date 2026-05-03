@@ -62,7 +62,7 @@ Directory structure:
     │       │   ├── index.mts
     │       │   ├── server.mts
     │       │   ├── config/
-    │       │   │   ├── cloudflare.mts
+    │       │   │   ├── s3.mts
     │       │   │   ├── cors.mts
     │       │   │   ├── db.mts
     │       │   │   ├── index.mts
