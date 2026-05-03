@@ -3343,11 +3343,10 @@ services:
 
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-}
 
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      TOKEN_VALUE: ${TOKEN_VALUE}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
 
       MAX_PHOTO_SIZE: ${MAX_PHOTO_SIZE:-50000}
       MAX_PHOTO_WIDTH: ${MAX_PHOTO_WIDTH:-1080}
@@ -4475,18 +4474,18 @@ process.on("unhandledRejection", reason => {
 
 
 ================================================
-FILE: services/core/src/config/cloudflare.mts
+FILE: services/core/src/config/s3.mts
 ================================================
 import { S3Client } from "@aws-sdk/client-s3";
 import { env } from "@shared/validations";
 
-export const r2 = new S3Client({
-  region: "auto",
-  endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+export const s3 = new S3Client({
+  region: env.AWS_REGION,
   credentials: {
-    accessKeyId: env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
+    accessKeyId: env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
   },
+  maxAttempts: 3,
 });
 
 

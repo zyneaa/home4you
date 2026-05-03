@@ -1,5 +1,5 @@
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
-import { r2 } from "@config";
+import { s3 } from "@config";
 import { Property } from "@modules/property/property.model.mjs";
 import { env } from "@shared/validations";
 import { AppError, logger } from "@utils";
@@ -32,8 +32,11 @@ export const postService = {
 
         try {
           const existenceChecks = dto.images.map(key =>
-            r2.send(
-              new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: key }),
+            s3.send(
+              new HeadObjectCommand({
+                Bucket: env.AWS_S3_BUCKET_NAME,
+                Key: key,
+              }),
             ),
           );
           logger.info(dto.images.map(k => k));

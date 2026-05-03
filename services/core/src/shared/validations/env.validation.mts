@@ -74,23 +74,20 @@ const envSchema = z.object({
 
   HMAC_SECRET_KEY: z.string().min(32, "HMAC secret is required"),
 
-  // Cloudflare
-  R2_ACCOUNT_ID: z
-    .string()
-    .length(32, "Cloudflare Account ID must be exactly 32 chars")
-    .regex(/^[a-f0-9]+$/, "Account ID must be hexadecimal"),
+  // AWS S3
+  AWS_REGION: z.string().min(1, "AWS_REGION is required"),
 
-  R2_ACCESS_KEY_ID: z
+  AWS_ACCESS_KEY_ID: z
     .string()
-    .length(32, "R2 Access Key ID is usually 32 chars")
+    .min(16, "AWS Access Key ID is too short")
     .trim(),
 
-  R2_SECRET_ACCESS_KEY: z
+  AWS_SECRET_ACCESS_KEY: z
     .string()
-    .min(64, "R2 Secret Access Key is too short")
+    .min(32, "AWS Secret Access Key is too short")
     .trim(),
 
-  R2_BUCKET_NAME: z
+  AWS_S3_BUCKET_NAME: z
     .string()
     .min(3, "Bucket name is too short")
     .max(63, "Bucket name exceeds S3 limits")
