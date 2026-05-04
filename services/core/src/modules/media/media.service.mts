@@ -81,14 +81,13 @@ export const mediaService = {
 
   async signMultipleImages(userId: string, data: ImageUploadCheckDto) {
     const { images, uploadId } = data;
+    if (!images?.length) {
+      throw new AppError("No images provided", 400);
+    }
 
     const isExist = await this.checkUploadId(uploadId);
     if (isExist) {
       throw new AppError("Media already exist", 409);
-    }
-
-    if (!images?.length) {
-      throw new AppError("No images provided", 400);
     }
 
     const seen = new Set<string>();
@@ -239,7 +238,7 @@ export const mediaService = {
     const update = await Media.updateMany(
       {
         userId,
-        key: { uploadStatus: rawKeys },
+        key: { $in: rawKeys },
         uploadStatus: "PENDING",
       },
       { $set: { uploadStatus: "UPLOADED" } },
