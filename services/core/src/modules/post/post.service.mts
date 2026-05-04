@@ -1,0 +1,255 @@
+import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import { s3 } from "@config";
+import { Property } from "@modules/property/property.model.mjs";
+import { env } from "@shared/validations";
+import { AppError, logger } from "@utils";
+import mongoose from "mongoose";
+
+import type { CreatePostDto } from "./dtos/addPost.dto.mjs";
+import type { ListPostsDto } from "./dtos/listPosts.dto.mjs";
+import type { UpdatePostDto } from "./dtos/updatePost.dto.mjs";
+import { Post } from "./post.model.mjs";
+
+export const postService = {
+  /**
+   * Creates a new property and an associated post in a database transaction.
+   *
+   * @param userId - The ID of the user creating the post.
+   * @param dto - Data for creating the post and property.
+   * @returns The created post object.
+   * @throws {AppError} If property creation fails.
+   */
+  async createPost(userId: string, dto: CreatePostDto) {
+    const session = await mongoose.startSession();
+    try {
+      if (dto.images && dto.images.length > 0) {
+        const isOwner = dto.images.every(key =>
+          key.startsWith(`media/u/${userId}/p/${dto.postId}/`),
+        );
+        if (!isOwner) {
+          throw new AppError("Forbidden: Media path mismatch", 403);
+        }
+
+        try {
+          const existenceChecks = dto.images.map(key =>
+            s3.send(
+              new HeadObjectCommand({
+                Bucket: env.AWS_S3_BUCKET_NAME,
+                Key: key,
+              }),
+            ),
+          );
+          logger.info(dto.images.map(k => k));
+          await Promise.all(existenceChecks);
+        } catch (err) {
+          logger.error(err);
+          throw new AppError(
+            `One or more photos were not found in storage`,
+            400,
+          );
+        }
+      }
+
+      let postArray: any[] = [];
+      await session.withTransaction(async () => {
+        const properties = await Property.create(
+          [
+            {
+              ...dto,
+              listedBy: userId,
+            },
+          ],
+          { session },
+        );
+
+        if (!properties || properties.length === 0 || !properties[0]) {
+          throw new AppError("Failed to create property", 500);
+        }
+
+        const createdProperty = properties[0];
+
+        postArray = await Post.create(
+          [
+            {
+              _id: dto.postId,
+              listedBy: userId,
+              property: createdProperty._id,
+
+              description: dto.description,
+              likeCount: 0,
+              commentCount: 0,
+              shareCount: 0,
+
+              currentComplianceScore: 10, // placeholder
+              currentActivityModifier: 10, // placeholder
+              qualityScore: 10, // placeholder
+            },
+          ],
+          { session },
+        );
+      });
+      return postArray[0];
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  },
+
+  /**
+   * Updates a post's description and its associated property data.
+   *
+   * @param userId - The ID of the user attempting the update.
+   * @param postId - The ID of the post to update.
+   * @param dto - The update data.
+   * @returns The updated post object.
+   * @throws {AppError} If post not found or user not authorized.
+   */
+  async updatePost(userId: string, postId: string, dto: UpdatePostDto) {
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      throw new AppError("Invalid Post ID", 400);
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      let updatedPost;
+      await session.withTransaction(async () => {
+        const post = await Post.findById(postId).session(session);
+        if (!post) {
+          throw new AppError("Post not found", 404);
+        }
+
+        if (post.listedBy.toString() !== userId) {
+          throw new AppError("Not authorized to update this post", 403);
+        }
+
+        const { description, ...propertyData } = dto;
+
+        if (description !== undefined) {
+          post.description = description;
+          await post.save({ session });
+        }
+
+        if (Object.keys(propertyData).length > 0) {
+          await Property.findByIdAndUpdate(
+            post.property,
+            { ...propertyData },
+            { session, runValidators: true },
+          );
+        }
+
+        updatedPost = post;
+      });
+      return updatedPost;
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  },
+
+  /**
+   * Deletes a post and its associated property.
+   *
+   * @param userId - The ID of the user attempting the deletion.
+   * @param postId - The ID of the post to delete.
+   * @returns A success message object.
+   * @throws {AppError} If post not found or user not authorized.
+   */
+  async deletePost(userId: string, postId: string) {
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      throw new AppError("Invalid Post ID", 400);
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const post = await Post.findById(postId).session(session);
+        if (!post) {
+          throw new AppError("Post not found", 404);
+        }
+
+        if (post.listedBy.toString() !== userId) {
+          throw new AppError("Not authorized to delete this post", 403);
+        }
+
+        await Property.findByIdAndDelete(post.property).session(session);
+        await Post.findByIdAndDelete(postId).session(session);
+      });
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+    return { message: "Post deleted successfully" };
+  },
+
+  /**
+   * Retrieves a single post by ID with populated details.
+   *
+   * @param postId - The ID of the post to retrieve.
+   * @returns The post document with populated listedBy and property fields.
+   * @throws {AppError} If post not found.
+   */
+  async getPostById(postId: string) {
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      throw new AppError("Invalid Post ID", 400);
+    }
+
+    const post = await Post.findById(postId)
+      .populate("listedBy")
+      .populate("property");
+    if (!post) {
+      throw new AppError("Post not found", 404);
+    }
+    return post;
+  },
+
+  /**
+   * Retrieves a paginated list of posts, optionally filtered by userId.
+   *
+   * @param options - Pagination and filter options.
+   * @returns Paginated posts and metadata.
+   */
+  async getPosts(options: ListPostsDto) {
+    const { page = 1, limit = 10, userId } = options;
+    const query: any = {};
+
+    if (userId) {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new AppError("Invalid User ID", 400);
+      }
+      query.listedBy = userId;
+    }
+
+    const skip = (page - 1) * limit;
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .populate("listedBy")
+        .populate("property")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Post.countDocuments(query),
+    ]);
+
+    return {
+      data: posts,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+};

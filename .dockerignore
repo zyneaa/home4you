@@ -57,4 +57,4 @@ docker-compose.yml
 dump.rdb
 tsconfig.tsbuildinfo
 xh/
-
+postman/

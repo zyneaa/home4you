@@ -1,134 +1,123 @@
-.PHONY: help build up down logs restart clean dev dev-up dev-down dev-logs dev-restart dev-clean test lint fmt install
+# root-level Makefile
 
-# Default target
-.DEFAULT_GOAL := help
+COMPOSE_DIR := infrastructure/docker
+PROD_COMPOSE := $(COMPOSE_DIR)/docker-compose.yml
+DEV_COMPOSE  := $(COMPOSE_DIR)/docker-compose.dev.yml
 
-# Colors for output
-BLUE := \033[0;34m
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-NC := \033[0m # No Color
+# ------------------------------
+# Production commands
+# ------------------------------
+build: ## Build production images
+	@echo "Building production images..."
+	docker compose -f $(PROD_COMPOSE) build
 
-help:
-	@echo "$(BLUE)Available commands:$(NC)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
+up: ## Start production services
+	@echo "Starting production services..."
+	docker compose -f $(PROD_COMPOSE) --env-file .env up -d
 
-deploy: ## Pull latest images from GHCR and restart
-	@echo "$(BLUE)Deploying latest images from GHCR...$(NC)"
-	docker compose pull
-	docker compose up -d --remove-orphans
+up-logs: ## Start production services to debug(don't actually use it in prod)
+	@echo "Starting production services with logging(use for debugging prod server)..."
+	docker compose -f $(PROD_COMPOSE) --env-file .env up
+
+down: ## Stop production services
+	@echo "Stopping production services..."
+	docker compose -f $(PROD_COMPOSE) down
+
+logs: ## Follow production logs
+	docker compose -f $(PROD_COMPOSE) logs -f core
+
+restart: ## Restart production services
+	@echo "Restarting production services..."
+	docker compose -f $(PROD_COMPOSE) restart
+
+clean: ## Remove production containers and volumes
+	@echo "Cleaning production containers..."
+	docker compose -f $(PROD_COMPOSE) down -v
+
+deploy: ## Pull latest images + restart
+	@echo "Deploying latest images..."
+	docker compose -f $(PROD_COMPOSE) pull
+	docker compose -f $(PROD_COMPOSE) up -d --remove-orphans
 	docker image prune -f
 
-# Production commands
-build:
-	@echo "$(BLUE)Building production image...$(NC)"
-	docker compose build
-
-up:
-	@echo "$(BLUE)Starting production services...$(NC)"
-	docker compose up -d
-
-down:
-	@echo "$(BLUE)Stopping production services...$(NC)"
-	docker compose down
-
-logs:
-	docker compose logs -f app
-
-restart:
-	@echo "$(BLUE)Restarting production services...$(NC)"
-	docker compose restart
-
-clean:
-	@echo "$(YELLOW)Warning: This will remove all production data!$(NC)"
-	docker compose down -v
-
+# ------------------------------
 # Development commands
-dev-up:
-	@echo "$(BLUE)Starting development services...$(NC)"
-	docker compose -f docker-compose.dev.yml up --watch
-	@echo "$(GREEN)Development services started!$(NC)"
-	@echo "$(BLUE)View logs with: make dev-logs$(NC)"
+# ------------------------------
+dev-up: ## Start development services
+	@echo "Starting development services..."
+	docker compose -f $(DEV_COMPOSE) --env-file .env up --watch
 
-dev-down:
-	@echo "$(BLUE)Stopping development services...$(NC)"
-	docker-compose -f docker-compose.dev.yml down
+dev-down: ## Stop development services
+	@echo "Stopping development services..."
+	docker compose -f $(DEV_COMPOSE) down
 
-dev-logs:
-	docker-compose -f docker-compose.dev.yml logs -f app
+dev-logs: ## Follow development logs
+	docker compose -f $(DEV_COMPOSE) logs -f core
 
-dev-restart:
-	@echo "$(BLUE)Restarting development services...$(NC)"
-	docker-compose -f docker-compose.dev.yml restart app
+dev-restart: ## Restart development services
+	@echo "Restarting development services..."
+	docker compose -f $(DEV_COMPOSE) restart core
 
-dev-clean:
-	@echo "$(YELLOW)Warning: This will remove all development data!$(NC)"
-	docker-compose -f docker-compose.dev.yml down -v
+dev-clean: ## Remove development containers and volumes
+	@echo "Cleaning development containers..."
+	docker compose -f $(DEV_COMPOSE) down -v
 
-dev-build:
-	@echo "$(BLUE)Building development image...$(NC)"
-	docker-compose -f docker-compose.dev.yml build
+dev-build: ## Build development images
+	@echo "Building development images..."
+	docker compose -f $(DEV_COMPOSE) build
 
-dev-shell:
-	docker-compose -f docker-compose.dev.yml exec app sh
+dev-shell: ## Open shell in dev container
+	docker compose -f $(DEV_COMPOSE) exec core sh
 
-# Code quality commands
-test:
-	npm test
+dev: dev-up dev-logs ## alias: start dev + follow logs
 
-test-cov:
-	npm run test:cov
-
-lint:
-	@echo "$(BLUE)Running linter...$(NC)"
-	npm run lint
-
-lint-fix:
-	@echo "$(BLUE)Fixing linting issues...$(NC)"
-	npm run lint:fix
-
-fmt:
-	@echo "$(BLUE)Formatting code...$(NC)"
-	npm run fmt
-
-fmt-check:
-	@echo "$(BLUE)Checking code formatting...$(NC)"
-	npm run fmt:check
-
-# Setup commands
-install:
-	@echo "$(BLUE)Installing dependencies...$(NC)"
-	npm install
-
-# Database commands
+# ------------------------------
+# Database / Redis
+# ------------------------------
 db-shell:
-	docker-compose exec mongo mongosh
+	docker compose -f $(PROD_COMPOSE) exec mongo mongosh
 
 db-shell-dev:
-	docker-compose -f docker-compose.dev.yml exec mongo mongosh
+	docker compose -f $(DEV_COMPOSE) exec mongo mongosh
 
 redis-cli:
-	docker-compose exec redis redis-cli
+	docker compose -f $(PROD_COMPOSE) exec redis redis-cli
 
 redis-cli-dev:
-	docker-compose -f docker-compose.dev.yml exec redis redis-cli
+	docker compose -f $(DEV_COMPOSE) exec redis redis-cli
 
-# Utility commands
-ps: ## Show running containers
-	@echo "$(BLUE)Production containers:$(NC)"
-	@docker-compose ps
-	@echo "\n$(BLUE)Development containers:$(NC)"
-	@docker-compose -f docker-compose.dev.yml ps
+# ------------------------------
+# Utilities
+# ------------------------------
+ps:
+	@echo "Production containers:"
+	docker compose -f $(PROD_COMPOSE) ps
+	@echo "\nDevelopment containers:"
+	docker compose -f $(DEV_COMPOSE) ps
 
-prune: ## Remove unused Docker resources
-	@echo "$(YELLOW)Removing unused Docker resources...$(NC)"
+prune:
+	@echo "Pruning Docker resources..."
 	docker system prune -f
 
-# Combined commands
-setup: install ## Install dependencies and setup project
-	@echo "$(GREEN)Setup complete!$(NC)"
+setup: install
+	@echo "Setup complete"
 
-dev: dev-up dev-logs ## Start development and follow logs (alias for dev-up + dev-logs)
+# ------------------------------
+# Code commands
+# ------------------------------
 
-prod: build up logs ## Build, start production and follow logs
+CORE_SERVICE_DIR := ./services/core
+core-lint:
+	cd $(CORE_SERVICE_DIR) && npm run lint:fix
+
+core-fmt:
+	cd $(CORE_SERVICE_DIR) && npm run fmt
+
+core-check:
+	cd $(CORE_SERVICE_DIR) && npm run lint && npm run fmt:check
+
+# ------------------------------
+# Aliases
+# ------------------------------
+prod: build up logs
 

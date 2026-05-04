@@ -18,14 +18,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 20.x
           cache: "npm"
+          cache-dependency-path: services/core/package-lock.json
 
       - name: Install dependencies
+        working-directory: ./services/core
         run: npm ci
 
       - name: Check linting
+        working-directory: ./services/core
         run: npm run lint
 
       - name: Run Prettier format check
+        working-directory: ./services/core
         run: npm run fmt:check
