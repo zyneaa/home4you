@@ -9,7 +9,7 @@ import {
   startCleanupOrphanedUploadsJob,
 } from "./cleanupOrphanedUploads.job.mjs";
 
-const bootstrap = async () => {
+const bootstrap = async (): Promise<void> => {
   // The job only touches the database and S3 after DB init succeeded.
   await connectDB();
 

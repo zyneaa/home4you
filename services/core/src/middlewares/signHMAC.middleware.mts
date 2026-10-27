@@ -1,6 +1,7 @@
+import { createHash } from "crypto";
+
 import { AppError, logger, verifySignature } from "@utils";
 import type { RequestHandler } from "express";
-import { createHash } from "crypto";
 
 export const requestSigningGuard: RequestHandler = async (req, _res, next) => {
   try {

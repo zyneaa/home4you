@@ -42,7 +42,7 @@ async function releaseLock(): Promise<void> {
 // PENDING so the next run retries them. Bounded by a single updateMany.
 export async function reconcileStaleCleanings(
   staleMinutes = STALE_CLAIM_MINUTES,
-) {
+): Promise<number> {
   const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
 
   const res = await Media.updateMany(
@@ -62,7 +62,7 @@ export async function reconcileStaleCleanings(
   return res.modifiedCount;
 }
 
-export async function runCleanupOnce(graceMinutes = 30) {
+export async function runCleanupOnce(graceMinutes = 30): Promise<void> {
   // Per-process re-entry guard; cross-process duplication is prevented by
   // the distributed lock. cleanupOrphanedUploads() itself is idempotent and
   // bounds its S3/database work via pLimit and batched queries.
@@ -94,7 +94,7 @@ export async function runCleanupOnce(graceMinutes = 30) {
   }
 }
 
-export function startCleanupOrphanedUploadsJob() {
+export function startCleanupOrphanedUploadsJob(): void {
   const schedule = process.env["CLEANUP_CRON_SCHEDULE"] ?? "*/15 * * * *";
   const graceMinutes = Number(process.env["CLEANUP_GRACE_MINUTES"] ?? 30);
 
