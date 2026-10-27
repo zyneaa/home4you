@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 import { AppError, logger, verifySignature } from "@utils";
 import type { RequestHandler } from "express";
 
@@ -10,7 +12,23 @@ export const requestSigningGuard: RequestHandler = async (req, _res, next) => {
     logger.info(
       `Req body type: ${typeof req.body}, Is Buffer: ${req.body instanceof Buffer}`,
     );
+
     logger.info(`Url: ${req.originalUrl}`);
+
+    if (Buffer.isBuffer(req.body)) {
+      logger.info(`Raw body bytes: ${req.body.length}`);
+      logger.info(
+        `Raw body SHA256: ${createHash("sha256")
+          .update(req.body)
+          .digest("hex")}`,
+      );
+      logger.info(
+        `Raw body SHA256: ${createHash("sha256").update(req.body).digest("hex")}`,
+      );
+    } else {
+      logger.info("No raw body buffer present (expected for GET)");
+    }
+
     logger.info(`Hmac info: Sig=${signature}, TS=${timestamp}, Nonce=${nonce}`);
 
     // For GET requests, payload is the URL/Query; for POST, it's the body

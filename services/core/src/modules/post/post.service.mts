@@ -1,3 +1,4 @@
+import { Media } from "@modules/media/media.model.mjs";
 import { Property } from "@modules/property/property.model.mjs";
 import { AppError } from "@utils";
 import mongoose from "mongoose";
@@ -21,26 +22,28 @@ export const postService = {
     try {
       let postArray: any[] = [];
       await session.withTransaction(async () => {
-        const properties = await Property.create(
+        const photoKeys = dto.images ?? [];
+        const property = await Property.create(
           [
             {
               ...dto,
+              photos: photoKeys,
               listedBy: userId,
             },
           ],
           { session },
         );
 
-        if (!properties || properties.length === 0 || !properties[0]) {
+        if (!property || property.length === 0 || !property[0]) {
           throw new AppError("Failed to create property", 500);
         }
 
-        const createdProperty = properties[0];
+        const createdProperty = property[0];
 
-        postArray = await Post.create(
+        const postDoc = await Post.create(
           [
             {
-              _id: dto.postId,
+              postId: dto.postId,
               listedBy: userId,
               property: createdProperty._id,
 
@@ -56,6 +59,51 @@ export const postService = {
           ],
           { session },
         );
+        const createdPost = postDoc[0];
+        if (!createdPost) {
+          throw new AppError("Failed to create post", 500);
+        }
+
+        // rp-1: claim media. Keys look like media/u/{userId}/p/{postId}/{mediaId}/raw
+        if (photoKeys.length > 0) {
+          const expectedKeyPrefix = `media/u/${userId}/p/${dto.postId}/`;
+          for (const key of photoKeys) {
+            if (!key.startsWith(expectedKeyPrefix)) {
+              throw new AppError(
+                "One or more media files do not belong to this post",
+                400,
+              );
+            }
+          }
+
+          // Atomic claim: filter includes isClaimed:false so a concurrent
+          // double-claim gets modifiedCount mismatch -> abort tx.
+          const claim = await Media.updateMany(
+            {
+              userId,
+              key: { $in: photoKeys },
+              uploadStatus: "UPLOADED",
+              isClaimed: false,
+            },
+            {
+              $set: {
+                isClaimed: true,
+                mediaOwnerId: createdPost._id,
+                mediaOwnerType: "POST",
+              },
+            },
+            { session },
+          );
+
+          if (claim.modifiedCount !== photoKeys.length) {
+            throw new AppError(
+              "One or more media files are missing, not uploaded, already used, or not owned by you",
+              400,
+            );
+          }
+        }
+
+        postArray = postDoc;
       });
       return postArray[0];
     } catch (error) {

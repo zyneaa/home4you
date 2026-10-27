@@ -5,3 +5,4 @@ export * from "./mimeType.type.mjs";
 export * from "./mediaOwnerType.type.mjs";
 export * from "./mediaUploadStatus.type.mjs";
 export * from "./mediaProcessingStatus.type.mjs";
+export * from "./mediaSessionStatus.type.mjs";

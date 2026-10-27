@@ -148,3 +148,7 @@ temp.txt
 xh/
 postman/
 .postman/
+
+# fake image generator output
+scripts/fake_images/
+scripts/bad_images/

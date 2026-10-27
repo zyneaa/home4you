@@ -7,7 +7,12 @@ import { z } from "zod";
 import { logger } from "../../utils/logger.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load the service-local .env first (original behavior), then the repo-root
+// .env as a fallback. dotenv does not override already-set vars, so whichever
+// exists wins and the other is a no-op. Fixes env never loading after the
+// validations folder gained a level (S3 refactor).
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../../../.env") });
 
 const envSchema = z.object({
   NODE_ENV: z
@@ -104,6 +109,8 @@ const envSchema = z.object({
   MAX_PHOTO_HEIGHT: z.string().regex(/^\d+$/).transform(Number).default(1080),
 
   MAX_PHOTO_FILES: z.string().regex(/^\d+$/).transform(Number).default(10),
+
+  MAX_VIDEO_SIZE: z.string().regex(/^\d+$/).transform(Number).default(52428800),
 });
 
 const parseResult = envSchema.safeParse(process.env);
