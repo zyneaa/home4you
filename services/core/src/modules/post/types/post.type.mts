@@ -1,6 +1,8 @@
 import type mongoose from "mongoose";
 
 export interface IPost {
+  postId: string;
+
   listedBy: mongoose.Types.ObjectId;
 
   property: mongoose.Types.ObjectId;

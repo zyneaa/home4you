@@ -4,6 +4,12 @@ import type { IPost } from "./types/post.type.mjs";
 
 const PostSchema = new Schema<IPost>(
   {
+    postId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
     listedBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

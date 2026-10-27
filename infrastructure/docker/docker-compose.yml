@@ -54,6 +54,45 @@ services:
     networks:
       - home4you-network
     restart: unless-stopped
+  cleanup-worker:
+    # Same image as core; only the entrypoint differs (background cron
+    # worker instead of the HTTP API).
+    image: ${IMAGE_NAME:-home4you:local}
+    build:
+      context: ../../services/core
+      dockerfile: ../../services/core/Dockerfile
+    # No ports: the worker exposes nothing.
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Database
+      DATABASE_URL: ${DATABASE_URL:-mongodb://mongo:27017/home4you}
+      DATABASE_REPLICA_SET: ${DATABASE_REPLICA_SET:-rs0}
+      MONGO_MAX_POOL_SIZE: ${MONGO_MAX_POOL_SIZE:-10}
+      MONGO_MIN_POOL_SIZE: ${MONGO_MIN_POOL_SIZE:-2}
+      # Redis (distributed lock)
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      # Job tuning
+      CLEANUP_CRON_SCHEDULE: ${CLEANUP_CRON_SCHEDULE:-*/15 * * * *}
+      CLEANUP_GRACE_MINUTES: ${CLEANUP_GRACE_MINUTES:-30}
+      # S3
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - home4you-network
+    restart: unless-stopped
+    # Override the API entrypoint; the worker connects to the DB itself
+    # before scheduling anything.
+    command: ["node", "./build/jobs/worker.mjs"]
 
   mongo:
     image: mongo:7.0

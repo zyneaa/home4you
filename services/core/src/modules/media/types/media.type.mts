@@ -3,6 +3,7 @@ import type {
   MimeType,
   MediaUploadStatus,
   MediaProcessingStatus,
+  MediaSessionStatus,
 } from "@shared/types";
 import type mongoose from "mongoose";
 
@@ -28,10 +29,17 @@ export interface IMedia {
   width?: number;
   height?: number;
   duration?: number;
-  checksum?: "sha256" | "etag"; // optional (integrity)
+  checksum?: string; // set/verified by the media processor (EP-05), not the API
   variants?: {
     thumbnail?: string;
     medium?: string;
   };
   isDeleted?: boolean;
+}
+
+export interface IMediaSession {
+  userId: mongoose.Types.ObjectId;
+  uploadId: string;
+  status: MediaSessionStatus;
+  expiresAt?: Date;
 }

@@ -117,6 +117,18 @@ core-check:
 	cd $(CORE_SERVICE_DIR) && npm run lint && npm run fmt:check
 
 # ------------------------------
+# Fake image generators (args: min_mb max_mb, e.g. make gen-good-images MIN=0.1 MAX=30)
+# ------------------------------
+MIN_MB ?= 0.1
+MAX_MB ?= 30
+
+gen-good-images: ## Generate fake images with valid magic bytes
+	python3 scripts/generate_good_images.py $(MIN_MB) $(MAX_MB)
+
+gen-bad-images: ## Generate corrupted/bad images
+	python3 scripts/generate_bad_images.py $(MIN_MB) $(MAX_MB)
+
+# ------------------------------
 # Aliases
 # ------------------------------
 prod: build up logs

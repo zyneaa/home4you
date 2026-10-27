@@ -60,7 +60,7 @@ const MediaSchema = new Schema<IMedia>(
 
     uploadStatus: {
       type: String,
-      enum: ["PENDING", "UPLOADED", "FAILED"],
+      enum: ["PENDING", "UPLOADED", "FAILED", "CLEANING"],
       required: true,
       default: MediaUploadStatus.PENDING,
       index: true,

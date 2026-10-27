@@ -128,3 +128,4 @@ All environment variables can be set in a `.env` file or passed directly to `doc
   ```
 
 - **Port conflicts**: If ports 8000, 27017, or 6379 are already in use, modify the port mappings in `docker-compose.yml` or set `PORT`, `MONGO_PORT`, or `REDIS_PORT` in your `.env` file.
+

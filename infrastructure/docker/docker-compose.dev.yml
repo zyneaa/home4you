@@ -91,13 +91,15 @@ services:
     networks:
       - home4you-network
     restart: unless-stopped
+    logging:
+      driver: "none"
     healthcheck:
       test: ["CMD-SHELL", "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 40s
-    command: mongod --replSet rs0 --wiredTigerCacheSizeGB 0.25
+    command: mongod --replSet rs0 --wiredTigerCacheSizeGB 0.25 --logpath /dev/null
 
   mongo-init:
     image: mongo:7.0

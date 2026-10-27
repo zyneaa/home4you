@@ -1,5 +1,10 @@
 import { corsOptions } from "@config";
-import { globalErrorHandler, requestId, morganMiddleware } from "@middlewares";
+import {
+  globalErrorHandler,
+  requestId,
+  morganMiddleware,
+  logSeparator,
+} from "@middlewares";
 import { routerV1 } from "@routes";
 import { AppError } from "@utils";
 import compression from "compression";
@@ -30,7 +35,7 @@ app.use(cookieParser());
 app.set("trust proxy", 1); // Trust only the first proxy
 
 // Router and middlewares
-app.use(requestId, morganMiddleware);
+app.use(requestId, morganMiddleware, logSeparator);
 app.use("/api/v1", routerV1);
 app.use((req, _res, next) => {
   const err = new AppError(

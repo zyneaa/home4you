@@ -8,4 +8,10 @@ export const s3 = new S3Client({
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
   },
   maxAttempts: 3,
+  // Newer SDK versions add default CRC32 checksum headers when presigning,
+  // but uploaders (browser/curl) don't send them -> S3 rejects with
+  // "There were headers present in the request which were not signed".
+  // Only calculate checksums when the operation explicitly requires it.
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
 });
