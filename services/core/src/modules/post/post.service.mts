@@ -167,7 +167,10 @@ export const postService = {
           );
 
           if (jobDocs.length) {
-            await MediaJob.create(jobDocs, { session });
+            await MediaJob.insertMany(jobDocs, {
+              session,
+              ordered: true,
+            });
           }
         }
 
