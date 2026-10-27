@@ -4,6 +4,7 @@ import type {
   MediaUploadStatus,
   MediaProcessingStatus,
   MediaSessionStatus,
+  MediaModerationStatus,
 } from "@shared/types";
 import type mongoose from "mongoose";
 
@@ -23,6 +24,7 @@ export interface IMedia {
   key: string;
   uploadStatus: MediaUploadStatus;
   processingStatus: MediaProcessingStatus;
+  moderationStatus: MediaModerationStatus;
 
   order?: number;
   size: number;

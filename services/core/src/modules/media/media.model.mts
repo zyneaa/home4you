@@ -1,4 +1,8 @@
-import { MediaProcessingStatus, MediaUploadStatus } from "@shared/types";
+import {
+  MediaModerationStatus,
+  MediaProcessingStatus,
+  MediaUploadStatus,
+} from "@shared/types";
 import { Schema, model } from "mongoose";
 
 import type { IMedia } from "./types/media.type.mjs";
@@ -71,6 +75,16 @@ const MediaSchema = new Schema<IMedia>(
       enum: ["PENDING", "PROCESSING", "DONE", "FAILED"],
       required: true,
       default: MediaProcessingStatus.PENDING,
+    },
+
+    // Set asynchronously by the classification worker. Listing visibility
+    // does not depend on it: labels arrive after synchronous validation.
+    moderationStatus: {
+      type: String,
+      enum: Object.values(MediaModerationStatus),
+      required: true,
+      default: MediaModerationStatus.PENDING,
+      index: true,
     },
 
     order: {

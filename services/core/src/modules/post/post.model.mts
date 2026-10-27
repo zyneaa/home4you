@@ -23,6 +23,15 @@ const PostSchema = new Schema<IPost>(
       index: true,
     },
 
+    // Stable identifiers of claimed Media records (Media.mediaId UUIDs).
+    // S3 keys are never accepted from the client; photos are derived
+    // server-side from the claimed media documents.
+    mediaIds: {
+      type: [String],
+      required: true,
+      default: [],
+    },
+
     description: {
       type: String,
     },

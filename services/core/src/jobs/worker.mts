@@ -8,6 +8,7 @@ import {
   runCleanupOnce,
   startCleanupOrphanedUploadsJob,
 } from "./cleanupOrphanedUploads.job.mjs";
+import { startMediaJobDispatcherJob } from "./mediaJobDispatcher.job.mjs";
 
 const bootstrap = async (): Promise<void> => {
   // The job only touches the database and S3 after DB init succeeded.
@@ -22,6 +23,7 @@ const bootstrap = async (): Promise<void> => {
   }
 
   startCleanupOrphanedUploadsJob();
+  startMediaJobDispatcherJob();
 };
 
 bootstrap().catch(err => {

@@ -7,6 +7,8 @@ export interface IPost {
 
   property: mongoose.Types.ObjectId;
 
+  mediaIds: string[];
+
   description: string;
   likeCount: number;
   commentCount: number;
