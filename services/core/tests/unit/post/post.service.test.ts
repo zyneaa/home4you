@@ -108,8 +108,16 @@ describe("postService.createPost media claim (rp-1)", () => {
       select: () => ({
         session: () => ({
           lean: async () => [
-            { _id: new mongoose.Types.ObjectId(), key: KEY_A, mediaType: "image" },
-            { _id: new mongoose.Types.ObjectId(), key: KEY_B, mediaType: "image" },
+            {
+              _id: new mongoose.Types.ObjectId(),
+              key: KEY_A,
+              mediaType: "image",
+            },
+            {
+              _id: new mongoose.Types.ObjectId(),
+              key: KEY_B,
+              mediaType: "image",
+            },
           ],
         }),
       }),
