@@ -1,6 +1,7 @@
 # EP — Rust Media Optimization Worker (OPTIMIZE_IMAGE / GENERATE_VIDEO_RENDITIONS)
 
-Status: NOT IMPLEMENTED — plan only. The API already persists durable
+Status: IMPLEMENTED in `services/media-worker` (Rust workspace). This
+document is the design record. The API already persists durable
 `MediaJob` records (status PENDING, lease fields ready) and a dispatcher
 publishes them to the Redis list `media:jobs:queue` (see
 `services/core/src/jobs/mediaJobDispatcher.job.mts`). This document covers the

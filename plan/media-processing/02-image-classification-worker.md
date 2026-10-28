@@ -1,6 +1,7 @@
 # EP — Image Classification Worker (CLASSIFY_IMAGE via Google Cloud Vision)
 
-Status: NOT IMPLEMENTED — plan only. `MediaJob` records of type
+Status: IMPLEMENTED in `services/media-worker` (Rust workspace). This
+document is the design record. `MediaJob` records of type
 CLASSIFY_IMAGE are already persisted in the same transaction as post +
 media claim and dispatched to Redis (`media:jobs:queue`). This document
 covers the worker that consumes them.
