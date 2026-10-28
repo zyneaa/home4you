@@ -157,7 +157,7 @@ export const mediaService = {
             userId,
             uploadId,
             status: MediaSessionStatus.OPEN,
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+            expiresAt: new Date(Date.now() + 1 * 60 * 1000),
           },
         ],
         { session },

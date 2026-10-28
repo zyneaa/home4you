@@ -1,0 +1,6 @@
+export enum MediaModerationStatus {
+  PENDING = "PENDING",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  REVIEW_REQUIRED = "REVIEW_REQUIRED",
+}

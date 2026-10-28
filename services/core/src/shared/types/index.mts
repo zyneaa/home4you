@@ -6,3 +6,7 @@ export * from "./mediaOwnerType.type.mjs";
 export * from "./mediaUploadStatus.type.mjs";
 export * from "./mediaProcessingStatus.type.mjs";
 export * from "./mediaSessionStatus.type.mjs";
+export * from "./mediaModerationStatus.type.mjs";
+export * from "./mediaJobType.type.mjs";
+export * from "./mediaJobStatus.type.mjs";
+export * from "./classificationProvider.type.mjs";
