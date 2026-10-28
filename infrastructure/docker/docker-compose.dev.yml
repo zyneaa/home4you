@@ -164,6 +164,35 @@ services:
     # npm run dev uses tsx watch on src/index.mts; point it at the worker.
     command: ["npx", "tsx", "watch", "src/jobs/worker.mts"]
 
+  media-worker:
+    # Rust media worker (optimization + classification). Consumes the Redis
+    # job queue; MongoDB MediaJob records are the durable source of truth.
+    build:
+      context: ../../services/media-worker
+      dockerfile: Dockerfile
+    container_name: home4you-media-worker-dev
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/home4you?replicaSet=rs0}
+      MONGO_DB: ${MONGO_DATABASE:-home4you}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
+      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-2}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - home4you-network
+    restart: unless-stopped
+
   mongo:
     image: mongo:7.0
     container_name: home4you-mongo-dev
