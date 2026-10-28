@@ -1,3 +1,4 @@
+import { ClassificationProvider } from "@shared/types";
 import mongoose, {
   Schema,
   model,
@@ -5,9 +6,9 @@ import mongoose, {
   type Model,
 } from "mongoose";
 
-export const ClassificationProvider = {
-  GOOGLE_CLOUD_VISION: "google-cloud-vision",
-} as const;
+import type { IMediaClassification } from "./types/mediaClassification.type.mjs";
+
+export { ClassificationProvider };
 
 const ClassificationLabelSchema = new Schema(
   {
@@ -39,7 +40,7 @@ const ClassificationLabelSchema = new Schema(
   },
 );
 
-const MediaClassificationSchema = new Schema(
+const MediaClassificationSchema = new Schema<IMediaClassification>(
   {
     mediaId: {
       type: Schema.Types.ObjectId,

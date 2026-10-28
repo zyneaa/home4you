@@ -1,3 +1,4 @@
+import { MediaJobStatus, MediaJobType } from "@shared/types";
 import mongoose, {
   Schema,
   model,
@@ -5,21 +6,11 @@ import mongoose, {
   type Model,
 } from "mongoose";
 
-export const MediaJobType = {
-  CLASSIFY_IMAGE: "CLASSIFY_IMAGE",
-  OPTIMIZE_IMAGE: "OPTIMIZE_IMAGE",
-  GENERATE_VIDEO_RENDITIONS: "GENERATE_VIDEO_RENDITIONS",
-} as const;
+import type { IMediaJob } from "./types/mediaJob.type.mjs";
 
-export const MediaJobStatus = {
-  PENDING: "PENDING",
-  PROCESSING: "PROCESSING",
-  COMPLETED: "COMPLETED",
-  FAILED: "FAILED",
-  CANCELLED: "CANCELLED",
-} as const;
+export { MediaJobStatus, MediaJobType };
 
-const MediaJobSchema = new Schema(
+const MediaJobSchema = new Schema<IMediaJob>(
   {
     mediaId: {
       type: Schema.Types.ObjectId,
