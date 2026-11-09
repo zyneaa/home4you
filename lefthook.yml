@@ -1,4 +1,4 @@
-jre-commit:
+pre-commit:
   parallel: true
   commands:
     service-core:

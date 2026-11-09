@@ -128,6 +128,7 @@ services:
     # Rust media worker: optimizes images/videos and classifies via
     # Google Cloud Vision. Consumes the Redis job queue; MongoDB MediaJob
     # records are the durable source of truth.
+    image: ${MEDIA_WORKER_IMAGE:-home4you-media-worker:local}
     build:
       context: ../../services/media-worker
       dockerfile: Dockerfile

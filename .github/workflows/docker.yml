@@ -33,47 +33,49 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # Log in to GHCR on the EC2
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-            # Navigate to app folder
-            cd ~/app || { echo "ERROR: ~/app directory not found"; exit 1; }
-
-            # Verify docker-compose.yml exists
-            if [ ! -f "docker-compose.yml" ]; then
-              echo "ERROR: docker-compose.yml not found in ~/app"
-              echo "Please ensure docker-compose.yml is present on the EC2 host"
-              exit 1
-            fi
-
-            # Set image name for docker-compose
-            export IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-            # Pull latest images
-            echo "Pulling latest images..."
-            docker compose pull
-
-            # Start all services together to ensure they're on the same network
-            echo "Starting all services..."
-            docker compose up -d --remove-orphans
-
-            # Verify services are running
-            echo "Verifying services are running..."
-            sleep 5
-            docker compose ps
-
-            # Clean up unused images
-            docker image prune -f
+  # DISABLED: EC2/AWS deploy via SSH + docker compose pull. Re-enable
+  # when AWS hosting is needed again; build-and-push above is enough for now.
+  # deploy:
+  #   needs: build-and-push
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #   steps:
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.2.5
+  #       with:
+  #         host: ${{ secrets.EC2_HOST }}
+  #         username: ${{ secrets.EC2_USER }}
+  #         key: ${{ secrets.EC2_SSH_KEY }}
+  #         script: |
+  #           # Log in to GHCR on the EC2
+  #           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+  #
+  #           # Navigate to app folder
+  #           cd ~/app || { echo "ERROR: ~/app directory not found"; exit 1; }
+  #
+  #           # Verify docker-compose.yml exists
+  #           if [ ! -f "docker-compose.yml" ]; then
+  #             echo "ERROR: docker-compose.yml not found in ~/app"
+  #             echo "Please ensure docker-compose.yml is present on the EC2 host"
+  #             exit 1
+  #           fi
+  #
+  #           # Set image name for docker-compose
+  #           export IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+  #
+  #           # Pull latest images
+  #           echo "Pulling latest images..."
+  #           docker compose pull
+  #
+  #           # Start all services together to ensure they're on the same network
+  #           echo "Starting all services..."
+  #           docker compose up -d --remove-orphans
+  #
+  #           # Verify services are running
+  #           echo "Verifying services are running..."
+  #           sleep 5
+  #           docker compose ps
+  #
+  #           # Clean up unused images
+  #           docker image prune -f

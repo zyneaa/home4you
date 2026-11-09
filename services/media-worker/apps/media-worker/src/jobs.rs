@@ -17,6 +17,7 @@ use crate::config::Config;
 /// fields are informational/correlation only but part of the wire contract.
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct JobPayload {
     pub job_id: String,
     pub media_id: String,
