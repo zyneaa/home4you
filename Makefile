@@ -11,6 +11,10 @@ build: ## Build production images
 	@echo "Building production images..."
 	docker compose -f $(PROD_COMPOSE) build
 
+MEDIA_WORKER_IMAGE ?= home4you-media-worker:local
+build-media-worker: ## Build only Rust media-worker (heavy, run on 4GB+ VM)
+	docker build -t $(MEDIA_WORKER_IMAGE) services/media-worker
+
 up: ## Start production services
 	@echo "Starting production services..."
 	docker compose -f $(PROD_COMPOSE) --env-file .env up -d
@@ -66,6 +70,27 @@ dev-build: ## Build development images
 	@echo "Building development images..."
 	docker compose -f $(DEV_COMPOSE) build
 
+COLIMA_CPU_BUILD ?= 4
+COLIMA_MEMORY_BUILD ?= 4
+COLIMA_CPU_RUN ?= 2
+COLIMA_MEMORY_RUN ?= 2
+COLIMA_DISK ?= 60
+
+colima-build-run: ## Stop Colima, start 4GB, build all, stop, restart 2GB, start dev
+	@echo "Stopping Colima..."
+	colima stop || true
+	@echo "Starting Colima with $(COLIMA_MEMORY_BUILD)GB for build..."
+	colima start --cpu $(COLIMA_CPU_BUILD) --memory $(COLIMA_MEMORY_BUILD) --disk $(COLIMA_DISK)
+	@echo "Building development images..."
+	docker compose -f $(DEV_COMPOSE) build
+	@echo "Stopping Colima..."
+	colima stop
+	@echo "Restarting Colima with $(COLIMA_MEMORY_RUN)GB to run..."
+	colima start --cpu $(COLIMA_CPU_RUN) --memory $(COLIMA_MEMORY_RUN) --disk $(COLIMA_DISK)
+	@echo "Starting development services..."
+	docker compose -f $(DEV_COMPOSE) --env-file .env up -d
+	@echo "Done. Follow logs with: make dev-logs"
+
 dev-shell: ## Open shell in dev container
 	docker compose -f $(DEV_COMPOSE) exec core sh
 
@@ -120,7 +145,7 @@ core-check:
 # Fake image generators (args: min_mb max_mb, e.g. make gen-good-images MIN=0.1 MAX=30)
 # ------------------------------
 MIN_MB ?= 0.1
-MAX_MB ?= 30
+MAX_MB ?= 5
 
 gen-good-images: ## Generate fake images with valid magic bytes
 	python3 scripts/generate_good_images.py $(MIN_MB) $(MAX_MB)
