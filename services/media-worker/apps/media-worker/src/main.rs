@@ -2,12 +2,6 @@
 //! claims MediaJob leases in MongoDB, and executes the work using the
 //! media-processing and media-classification libraries.
 
-mod config;
-mod jobs;
-mod queue;
-mod s3;
-mod worker;
-
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -15,11 +9,11 @@ use futures::StreamExt;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
 
-use crate::config::Config;
-use crate::jobs::Repos;
-use crate::queue::JobQueue;
-use crate::s3::MediaStore;
-use crate::worker::Worker;
+use media_worker::config::Config;
+use media_worker::jobs::Repos;
+use media_worker::queue::JobQueue;
+use media_worker::s3::MediaStore;
+use media_worker::worker::Worker;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

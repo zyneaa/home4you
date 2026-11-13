@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "media_worker"
+path = "src/lib.rs"
+
 [[bin]]
 name = "media-worker"
 path = "src/main.rs"
