@@ -57,7 +57,19 @@ impl HeartbeatSchedule {
 /// Handle for one job's heartbeat task.
 pub struct LeaseHeartbeat {
     cancel: CancellationToken,
-    handle: JoinHandle<()>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Drop for LeaseHeartbeat {
+    fn drop(&mut self) {
+        // Panic/abort exits cannot await `stop()`. Cancelling and aborting
+        // here prevents a detached renewer from keeping a dead job's lease
+        // alive forever.
+        self.cancel.cancel();
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+    }
 }
 
 impl LeaseHeartbeat {
@@ -78,7 +90,7 @@ impl LeaseHeartbeat {
         if job_cancel.is_cancelled() {
             return Self {
                 cancel,
-                handle: tokio::spawn(async {}),
+                handle: None,
             };
         }
 
@@ -118,13 +130,18 @@ impl LeaseHeartbeat {
             .await;
         });
 
-        Self { cancel, handle }
+        Self {
+            cancel,
+            handle: Some(handle),
+        }
     }
 
     /// Stop and join the heartbeat. Safe to call on every exit path.
-    pub async fn stop(self) {
-        let Self { cancel, handle } = self;
-        cancel.cancel();
+    pub async fn stop(mut self) {
+        self.cancel.cancel();
+        let Some(handle) = self.handle.take() else {
+            return;
+        };
         // Abort handles the case where the task is blocked in a MongoDB call;
         // at worst the in-flight renewal extends the existing lease, which is
         // harmless once the job is being completed or abandoned.

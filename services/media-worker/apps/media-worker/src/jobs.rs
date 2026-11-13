@@ -229,7 +229,12 @@ impl Repos {
                 doc! { "$set": { "leaseExpiresAt": lease_until } },
             )
             .await?;
-        Ok(res.modified_count == 1)
+        // Ownership is proven by the filter matching: PROCESSING, exact token,
+        // unexpired lease. A renewal can land in the same millisecond as the
+        // previous write, leaving the stored expiry unchanged; MongoDB then
+        // reports matched_count == 1 but modified_count == 0. Using
+        // modified_count here would falsely cancel a healthy lease.
+        Ok(res.matched_count == 1)
     }
 
     /// Record a failure: permanent failures go straight to FAILED; retryable
