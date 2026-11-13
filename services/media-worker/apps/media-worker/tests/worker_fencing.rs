@@ -531,3 +531,190 @@ async fn heartbeat_cancels_work_when_token_is_replaced() {
 
     harness.cleanup().await;
 }
+
+// ---------------------------------------------------------------------------
+// Verifier (S1-E) adversarial tests.
+// ---------------------------------------------------------------------------
+
+/// Verifier: an expired lease fences both the media and the classification
+/// write, including the moderation column on `Media`.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn expired_lease_cannot_commit_media_or_classification() {
+    let harness = Harness::new(300).await;
+    let media_id = harness.seed_media(media_doc("media/u/1/p/2/m/raw")).await;
+    let job_id = harness
+        .seed_job(processing_job(
+            &media_id,
+            "expired-commit-token",
+            in_seconds(-60),
+        ))
+        .await;
+
+    let stale_key = "media/u/1/p/2/m/optimized/expired-commit-token/webp-1200".to_string();
+    let media_outcome = harness
+        .repos
+        .set_media_processed(
+            &job_id,
+            "expired-commit-token",
+            &media_id,
+            &[("webp-1200".to_string(), stale_key)],
+            "stale-checksum",
+        )
+        .await
+        .expect("attempt fenced media commit on an expired lease");
+    let classification_outcome = harness
+        .repos
+        .upsert_classification(
+            &job_id,
+            "expired-commit-token",
+            &media_id,
+            &classification_record("REJECTED", "expired attempt must not decide"),
+        )
+        .await
+        .expect("attempt fenced classification commit on an expired lease");
+
+    assert_eq!(
+        media_outcome,
+        MediaCommitOutcome::LeaseLost,
+        "an expired lease must not publish renditions"
+    );
+    assert_eq!(
+        classification_outcome,
+        MediaCommitOutcome::LeaseLost,
+        "an expired lease must not publish a classification"
+    );
+
+    let media = harness.media(&media_id).await;
+    assert_eq!(
+        media.get_str("processingStatus").ok(),
+        Some("PENDING"),
+        "an expired attempt must not mark the media processed"
+    );
+    let variants = media.get_document("variants").expect("variants document");
+    assert!(
+        variants.is_empty(),
+        "an expired attempt must not publish variant keys, got {variants:?}"
+    );
+    assert!(
+        media.get("checksum").is_none(),
+        "an expired attempt must not publish a checksum"
+    );
+    assert_eq!(
+        media.get_str("moderationStatus").ok(),
+        Some("PENDING"),
+        "an expired attempt must not change moderation state"
+    );
+    assert_eq!(
+        harness.classification_count().await,
+        0,
+        "an expired attempt must not upsert a classification document"
+    );
+
+    harness.cleanup().await;
+}
+
+/// Verifier: a live lease whose expiry is renewed does not report ownership
+/// loss, even when two renewals land in the same millisecond and the stored
+/// value therefore does not change. `extend_lease` must prove ownership with
+/// the match count, not the modification count.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn same_millisecond_lease_renewal_is_not_ownership_loss() {
+    let harness = Harness::new(300).await;
+    let media_id = harness.seed_media(media_doc("media/u/1/p/2/m/raw")).await;
+    let job_id = harness
+        .seed_job(processing_job(&media_id, "renew-token", in_seconds(300)))
+        .await;
+
+    // Two consecutive renewals occasionally sample the same millisecond, so
+    // the stored expiry is written back unchanged. Probe enough renewals to
+    // make that same-millisecond case overwhelmingly likely.
+    for iteration in 0..500 {
+        let renewed = harness
+            .repos
+            .extend_lease(&job_id, "renew-token")
+            .await
+            .expect("renew live lease");
+        if !renewed {
+            // Prove that ownership was actually intact for this renewal: the
+            // job is still PROCESSING under our exact token with a live lease.
+            let job = harness
+                .repos
+                .jobs
+                .find_one(doc! { "_id": &job_id })
+                .await
+                .expect("read job after a rejected renewal")
+                .expect("job exists");
+            let still_owned = job.get_str("status").ok() == Some("PROCESSING")
+                && job.get_str("lockToken").ok() == Some("renew-token")
+                && job
+                    .get_datetime("leaseExpiresAt")
+                    .is_ok_and(|lease| *lease > BsonDateTime::now());
+            harness.cleanup().await;
+            panic!(
+                "extend_lease reported lease loss at renewal {iteration} although the job was \
+                 still owned ({still_owned}); a renewal whose new expiry equals the stored \
+                 expiry (same millisecond) must prove ownership with the match count, not the \
+                 modification count"
+            );
+        }
+    }
+
+    harness.cleanup().await;
+}
+
+/// Verifier: a heartbeat that is dropped without `stop()` (the panic/abort
+/// unwind path) must not leave a detached renewal task that keeps the lease
+/// alive forever. A panic in the handler drops the `LeaseHeartbeat` without
+/// running `stop()`, and an orphaned heartbeat would make the job unreapable.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn dropped_heartbeat_must_stop_renewing() {
+    let harness = Harness::new(2).await;
+    let media_id = harness.seed_media(media_doc("media/u/1/p/2/m/raw")).await;
+    let job_id = harness.seed_job(pending_job(&media_id)).await;
+
+    let claimed = harness
+        .repos
+        .claim_job(&job_id, "drop-worker")
+        .await
+        .expect("claim job");
+    let token = match claimed {
+        ClaimOutcome::Claimed(document) => document
+            .get_str("lockToken")
+            .expect("claim writes a lock token")
+            .to_string(),
+        ClaimOutcome::Skipped => panic!("seed job must be claimable"),
+    };
+
+    let job_cancel = CancellationToken::new();
+    let heartbeat = LeaseHeartbeat::start(
+        harness.repos.clone(),
+        job_id,
+        token.clone(),
+        job_cancel.clone(),
+    )
+    .await;
+    // Simulate a panic/abort unwind: the handle is dropped, `stop()` never runs.
+    drop(heartbeat);
+
+    // The claimed lease is 2 seconds; a detached renewal task would renew it
+    // every second and keep it alive indefinitely.
+    tokio::time::sleep(Duration::from_millis(3_500)).await;
+
+    let renewed = harness
+        .repos
+        .extend_lease(&job_id, &token)
+        .await
+        .expect("probe lease after dropping the heartbeat handle");
+
+    job_cancel.cancel();
+    harness.cleanup().await;
+
+    assert!(
+        !renewed,
+        "dropping the heartbeat handle must stop renewal: a detached task keeps \
+         the lease alive after a handler panic/abort and the job can never be reaped"
+    );
+}

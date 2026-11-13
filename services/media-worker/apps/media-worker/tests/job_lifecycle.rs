@@ -187,6 +187,10 @@ fn attempts(doc: &Document) -> i64 {
     doc.get_i64("attempts").expect("job has attempts")
 }
 
+fn lease_in(seconds: i64) -> BsonDateTime {
+    BsonDateTime::from_millis(BsonDateTime::now().timestamp_millis() + seconds * 1_000)
+}
+
 #[tokio::test]
 #[ignore = "requires MongoDB replica set"]
 async fn permanent_failure_on_attempt_one_becomes_failed() {
@@ -518,4 +522,234 @@ async fn completed_job_cannot_be_completed_again_by_stale_token() {
         "completedAt must not be rewritten by stale completions"
     );
     assert_lease_cleared(&job, "stale completion");
+}
+
+// ---------------------------------------------------------------------------
+// Verifier (S1-E) adversarial tests.
+// ---------------------------------------------------------------------------
+
+/// Verifier: a correct token is not enough — the lease itself must be live.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn complete_job_rejects_expired_lease_with_correct_token() {
+    let harness = Harness::new().await;
+    let job_id = harness
+        .seed(processing_job(0, 5, "expired-complete-token", lease_in(-1)))
+        .await;
+
+    let outcome = harness
+        .repos
+        .complete_job(&job_id, "expired-complete-token")
+        .await
+        .expect("attempt completion on an expired lease");
+
+    let job = harness.job(&job_id).await;
+    harness.cleanup().await;
+
+    assert!(
+        matches!(outcome, CompleteOutcome::LeaseLost),
+        "an expired lease must not be able to complete a job"
+    );
+    assert_eq!(
+        status(&job),
+        "PROCESSING",
+        "a rejected completion must leave the job untouched"
+    );
+    assert_eq!(
+        job.get_str("lockToken").ok(),
+        Some("expired-complete-token"),
+        "a rejected completion must not clear the current token"
+    );
+    assert!(
+        job.get_datetime("leaseExpiresAt").is_ok(),
+        "a rejected completion must not clear the lease"
+    );
+    assert!(
+        matches!(job.get("completedAt"), Some(Bson::Null) | None),
+        "a rejected completion must not stamp completedAt"
+    );
+}
+
+/// Verifier: two workers racing to record the same attempt's failure must
+/// produce exactly one attempt increment and one recorded failure.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn concurrent_fail_job_records_one_attempt_and_one_failure() {
+    let harness = Harness::new().await;
+    let job_id = harness
+        .seed(processing_job(
+            0,
+            5,
+            "dual-fail-token",
+            lease_in(LEASE_SECONDS),
+        ))
+        .await;
+
+    let (first, second) = tokio::join!(
+        harness
+            .repos
+            .fail_job(&job_id, "dual-fail-token", "transient failure A", true),
+        harness
+            .repos
+            .fail_job(&job_id, "dual-fail-token", "transient failure B", true)
+    );
+    first.expect("first concurrent failure");
+    second.expect("second concurrent failure");
+
+    let job = harness.job(&job_id).await;
+    harness.cleanup().await;
+
+    assert_eq!(
+        attempts(&job),
+        1,
+        "concurrent failures for one attempt must increment attempts exactly once"
+    );
+    assert_eq!(
+        status(&job),
+        "PENDING",
+        "the single recorded failure keeps the job retryable below the cap"
+    );
+    assert_lease_cleared(&job, "concurrent failures");
+    let last_error = job
+        .get_document("lastError")
+        .expect("the winning failure is recorded");
+    assert_eq!(
+        last_error.get_bool("retryable").ok(),
+        Some(true),
+        "the recorded failure carries the retry flag"
+    );
+    let message = last_error
+        .get_str("message")
+        .expect("the recorded failure carries a message");
+    assert!(
+        message == "transient failure A" || message == "transient failure B",
+        "exactly one failure message must be persisted, got {message:?}"
+    );
+    assert!(
+        job.get_datetime("availableAt").is_ok(),
+        "the retry backoff is scheduled once"
+    );
+}
+
+/// Verifier: the reaper's attempt budget is enforced exactly once.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn reaper_fails_final_attempt_and_never_requeues_it() {
+    let harness = Harness::new().await;
+    let job_id = harness
+        .seed(processing_job(4, 5, "final-attempt-token", lease_in(-60)))
+        .await;
+
+    let first = harness
+        .repos
+        .reap_expired_leases()
+        .await
+        .expect("first reap");
+    let after_first = harness.job(&job_id).await;
+    let second = harness
+        .repos
+        .reap_expired_leases()
+        .await
+        .expect("second reap");
+    let job = harness.job(&job_id).await;
+    harness.cleanup().await;
+
+    assert_eq!(first, 1, "the expired job is transitioned once");
+    assert_eq!(
+        status(&after_first),
+        "FAILED",
+        "attempts = maxAttempts - 1 must fail, not requeue"
+    );
+    assert_eq!(attempts(&after_first), 5);
+    assert_eq!(second, 0, "a FAILED job must not be reaped again");
+    assert_eq!(status(&job), "FAILED", "the terminal state is stable");
+    assert_eq!(attempts(&job), 5, "repeated reaping must not increment");
+    assert_lease_cleared(&job, "reaped final attempt");
+}
+
+/// Verifier: `claim_job` honors the attempt budget without an off-by-one.
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn claim_allows_final_attempt_and_refuses_exhausted_budget() {
+    let harness = Harness::new().await;
+    let final_attempt = harness
+        .seed(pending_job(4, 5, Some(BsonDateTime::now())))
+        .await;
+    let exhausted = harness
+        .seed(pending_job(5, 5, Some(BsonDateTime::now())))
+        .await;
+
+    let final_outcome = harness
+        .repos
+        .claim_job(&final_attempt, "budget-worker")
+        .await
+        .expect("claim final permitted attempt");
+    let exhausted_outcome = harness
+        .repos
+        .claim_job(&exhausted, "budget-worker")
+        .await
+        .expect("claim exhausted job");
+
+    let final_job = harness.job(&final_attempt).await;
+    let exhausted_job = harness.job(&exhausted).await;
+    harness.cleanup().await;
+
+    assert!(
+        matches!(final_outcome, ClaimOutcome::Claimed(_)),
+        "attempts = maxAttempts - 1 is the last permitted execution and must be claimable"
+    );
+    assert!(
+        matches!(exhausted_outcome, ClaimOutcome::Skipped),
+        "attempts = maxAttempts must not be claimed"
+    );
+    assert_eq!(status(&final_job), "PROCESSING");
+    assert_eq!(
+        status(&exhausted_job),
+        "PENDING",
+        "an exhausted PENDING job must be left untouched by the claim"
+    );
+    assert_lease_cleared(&exhausted_job, "exhausted claim attempt");
+}
+
+/// Verifier: an expired lease also blocks the failure transition (issue 4
+/// fencing applies to failure, not only completion).
+#[tokio::test]
+#[ignore = "requires MongoDB replica set"]
+async fn fail_job_with_expired_lease_does_not_mutate_job() {
+    let harness = Harness::new().await;
+    let job_id = harness
+        .seed(processing_job(0, 5, "expired-fail-token", lease_in(-1)))
+        .await;
+
+    harness
+        .repos
+        .fail_job(
+            &job_id,
+            "expired-fail-token",
+            "should not be recorded",
+            true,
+        )
+        .await
+        .expect("attempt failure on an expired lease");
+
+    let job = harness.job(&job_id).await;
+    harness.cleanup().await;
+
+    assert_eq!(
+        status(&job),
+        "PROCESSING",
+        "an expired lease must not write a failure transition"
+    );
+    assert_eq!(attempts(&job), 0, "attempts must not increment");
+    assert_eq!(
+        job.get_str("lockToken").ok(),
+        Some("expired-fail-token"),
+        "lease fields must be left for the reaper"
+    );
+    let last_error = job.get_document("lastError").expect("lastError exists");
+    assert!(
+        matches!(last_error.get("message"), Some(Bson::Null)),
+        "no failure message may be recorded, got {message:?}",
+        message = last_error.get("message")
+    );
 }
