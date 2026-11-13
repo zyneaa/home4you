@@ -98,18 +98,24 @@ impl Repos {
         Ok(updated.map_or(ClaimOutcome::Skipped, ClaimOutcome::Claimed))
     }
 
-    /// Mark complete — only while we still hold the lease.
+    /// Mark complete — only while we still hold an unexpired lease.
     pub async fn complete_job(
         &self,
         job_id: &ObjectId,
         lock_token: &str,
     ) -> anyhow::Result<CompleteOutcome> {
+        let now = BsonDateTime::now();
         let res = self
             .jobs
             .update_one(
-                doc! { "_id": job_id, "status": "PROCESSING", "lockToken": lock_token },
                 doc! {
-                    "$set": { "status": "COMPLETED", "completedAt": BsonDateTime::now() },
+                    "_id": job_id,
+                    "status": "PROCESSING",
+                    "lockToken": lock_token,
+                    "leaseExpiresAt": { "$gt": now },
+                },
+                doc! {
+                    "$set": { "status": "COMPLETED", "completedAt": now },
                     "$unset": { "lockedBy": "", "lockToken": "", "leaseExpiresAt": "" }
                 },
             )
@@ -119,6 +125,33 @@ impl Repos {
         } else {
             CompleteOutcome::LeaseLost
         })
+    }
+
+    /// Extend the lease of a job this worker still owns.
+    ///
+    /// The update only matches a PROCESSING job with the exact token and a
+    /// lease that has not already expired, so a heartbeat can never revive an
+    /// expired or replaced lease. Returns `true` only when the document was
+    /// actually modified; `false` means ownership was lost and the worker must
+    /// stop before committing results.
+    #[allow(dead_code)] // Heartbeat scheduling lands with the worker integration.
+    pub async fn extend_lease(&self, job_id: &ObjectId, lock_token: &str) -> anyhow::Result<bool> {
+        let now = BsonDateTime::now();
+        let lease_until =
+            BsonDateTime::from_millis(now.timestamp_millis() + self.config.lease_seconds * 1000);
+        let res = self
+            .jobs
+            .update_one(
+                doc! {
+                    "_id": job_id,
+                    "status": "PROCESSING",
+                    "lockToken": lock_token,
+                    "leaseExpiresAt": { "$gt": now },
+                },
+                doc! { "$set": { "leaseExpiresAt": lease_until } },
+            )
+            .await?;
+        Ok(res.modified_count == 1)
     }
 
     /// Record a failure: retry with exponential backoff while attempts
@@ -367,4 +400,39 @@ pub fn fingerprint(bytes: &[u8]) -> String {
 pub fn parse_payload(raw: &str) -> anyhow::Result<JobPayload> {
     let payload: JobPayload = serde_json::from_str(raw)?;
     Ok(payload)
+}
+
+/// Heartbeat cadence for lease renewal: one third of the lease duration,
+/// rounded down, and never less than one second.
+///
+/// Renewing well before expiry leaves room for at least two failed renewal
+/// attempts before ownership becomes ambiguous; callers should renew on this
+/// interval rather than waiting for `leaseExpiresAt`.
+#[allow(dead_code)] // Heartbeat scheduling lands with the worker integration.
+pub fn lease_renewal_interval_secs(lease_seconds: i64) -> u64 {
+    (lease_seconds / 3).max(1) as u64
+}
+
+#[cfg(test)]
+mod lease_renewal_interval_tests {
+    use super::lease_renewal_interval_secs;
+
+    #[test]
+    fn renews_every_third_of_a_normal_lease() {
+        assert_eq!(lease_renewal_interval_secs(300), 100);
+    }
+
+    #[test]
+    fn rounds_short_leases_up_to_one_second() {
+        assert_eq!(lease_renewal_interval_secs(3), 1);
+        assert_eq!(lease_renewal_interval_secs(2), 1);
+        assert_eq!(lease_renewal_interval_secs(1), 1);
+    }
+
+    #[test]
+    fn invalid_non_positive_leases_still_renew_every_second() {
+        assert_eq!(lease_renewal_interval_secs(0), 1);
+        assert_eq!(lease_renewal_interval_secs(-1), 1);
+        assert_eq!(lease_renewal_interval_secs(-300), 1);
+    }
 }
