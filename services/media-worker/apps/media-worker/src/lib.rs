@@ -3,6 +3,7 @@
 //! tests can exercise the job lifecycle without launching the worker.
 
 pub mod config;
+pub mod heartbeat;
 pub mod jobs;
 pub mod queue;
 pub mod s3;

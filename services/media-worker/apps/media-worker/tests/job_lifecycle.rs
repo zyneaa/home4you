@@ -70,10 +70,7 @@ impl Harness {
     }
 
     async fn seed(&self, job: Document) -> ObjectId {
-        let id = job
-            .get_object_id("_id")
-            .expect("seed job carries an _id")
-            .clone();
+        let id = job.get_object_id("_id").expect("seed job carries an _id");
         self.repos
             .jobs
             .insert_one(job)
@@ -488,10 +485,9 @@ async fn completed_job_cannot_be_completed_again_by_stale_token() {
     );
 
     let completed = harness.job(&job_id).await;
-    let completed_at = completed
+    let completed_at = *completed
         .get_datetime("completedAt")
-        .expect("completion timestamps the job")
-        .clone();
+        .expect("completion timestamps the job");
 
     let replay = harness
         .repos

@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use mongodb::bson::{doc, oid::ObjectId, Array, Bson, DateTime as BsonDateTime, Document};
-use mongodb::{Collection, Database};
+use mongodb::{ClientSession, Collection, Database};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -59,6 +59,50 @@ pub enum CompleteOutcome {
     /// Lease was lost/expired/reclaimed: do not write partial state.
     LeaseLost,
 }
+
+/// Outcome of a media or classification write that is fenced by the job lease.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaCommitOutcome {
+    Committed,
+    /// The job was no longer PROCESSING under this token with an unexpired
+    /// lease. The transaction was aborted; nothing was written.
+    LeaseLost,
+}
+
+/// Data persisted atomically with `Media.moderationStatus` for a
+/// classification job.
+#[derive(Debug, Clone)]
+pub struct ClassificationCommit {
+    pub provider: String,
+    pub pipeline_version: String,
+    pub model_version: Option<String>,
+    pub source_fingerprint: String,
+    pub labels: Array,
+    pub categories: Vec<String>,
+    pub moderation_status: String,
+    pub moderation_reason: String,
+}
+
+/// The write to apply after the job fence has been verified inside a
+/// transaction. Kept private so callers cannot bypass [`Repos::commit_fenced`].
+enum FencedWrite<'a> {
+    MediaProcessed {
+        variant_keys: &'a [(String, String)],
+        checksum: &'a str,
+    },
+    Moderation {
+        status: &'a str,
+        reason: &'a str,
+    },
+    Classification {
+        record: &'a ClassificationCommit,
+    },
+}
+
+/// Number of attempts for a fenced transaction that can be retried after a
+/// transient MongoDB transaction error (for example a write conflict with a
+/// concurrent reaper).
+const MAX_FENCED_COMMIT_ATTEMPTS: usize = 3;
 
 // `posts` and the policy methods are consumed by the moderation/review
 // flows that land with the next episodes.
@@ -169,7 +213,6 @@ impl Repos {
     /// expired or replaced lease. Returns `true` only when the document was
     /// actually modified; `false` means ownership was lost and the worker must
     /// stop before committing results.
-    #[allow(dead_code)] // Heartbeat scheduling lands with the worker integration.
     pub async fn extend_lease(&self, job_id: &ObjectId, lock_token: &str) -> anyhow::Result<bool> {
         let now = BsonDateTime::now();
         let lease_until =
@@ -365,28 +408,40 @@ impl Repos {
         Ok(self.posts.find_one(doc! { "_id": post_oid }).await?)
     }
 
-    /// Persist rendition metadata on Media. Uses per-rendition `$set` with
-    /// dotted paths so a Map field updates without replacing the whole map.
+    /// Persist rendition metadata on Media, but only while the job is still
+    /// PROCESSING under `lock_token` with an unexpired lease.
+    ///
+    /// The ownership check and the Media write happen in one transaction. A
+    /// stale attempt aborts before writing anything and receives
+    /// [`MediaCommitOutcome::LeaseLost`].
     pub async fn set_media_processed(
         &self,
+        job_id: &ObjectId,
+        lock_token: &str,
         media_oid: &ObjectId,
         variant_keys: &[(String, String)],
         checksum: &str,
-    ) -> anyhow::Result<()> {
-        let mut sets = doc! {
-            "processingStatus": "DONE",
-            "checksum": checksum,
-        };
-        for (name, key) in variant_keys {
-            sets.insert(format!("variants.{name}"), key);
-        }
-        self.media
-            .update_one(doc! { "_id": media_oid }, doc! { "$set": sets })
-            .await?;
-        Ok(())
+    ) -> anyhow::Result<MediaCommitOutcome> {
+        self.commit_fenced(
+            job_id,
+            lock_token,
+            media_oid,
+            FencedWrite::MediaProcessed {
+                variant_keys,
+                checksum,
+            },
+        )
+        .await
     }
 
     /// Mark a media record rejected (corrupt/unsupported/policy violation).
+    ///
+    /// # Fencing status
+    ///
+    /// This write is deliberately still unguarded: permanent-media rejection
+    /// belongs to sequence 4. Do not call it from a success path. Sequence 4
+    /// must either pass a job lease fence through this method or prove the
+    /// caller already owns the job.
     #[allow(dead_code)]
     pub async fn set_media_rejected(
         &self,
@@ -408,25 +463,23 @@ impl Repos {
         Ok(())
     }
 
-    /// Set moderation status without failing the upload (review path).
+    /// Set moderation status without failing the upload (review path). Fenced
+    /// by the job lease exactly like [`Self::set_media_processed`].
     pub async fn set_moderation_status(
         &self,
+        job_id: &ObjectId,
+        lock_token: &str,
         media_oid: &ObjectId,
         status: &str,
         reason: &str,
-    ) -> anyhow::Result<()> {
-        self.media
-            .update_one(
-                doc! { "_id": media_oid },
-                doc! {
-                    "$set": {
-                        "moderationStatus": status,
-                        "lastModerationReason": reason,
-                    }
-                },
-            )
-            .await?;
-        Ok(())
+    ) -> anyhow::Result<MediaCommitOutcome> {
+        self.commit_fenced(
+            job_id,
+            lock_token,
+            media_oid,
+            FencedWrite::Moderation { status, reason },
+        )
+        .await
     }
 
     /// Idempotency pre-check for classification: an existing result for the
@@ -447,43 +500,212 @@ impl Repos {
             .await?)
     }
 
-    /// Store classification results (upsert on mediaId, the unique key).
+    /// Store classification results and apply the moderation decision to
+    /// `Media.moderationStatus` in one lease-fenced transaction.
+    ///
+    /// Both documents commit or neither does. A stale token aborts before the
+    /// classification upsert or the Media update.
     pub async fn upsert_classification(
         &self,
+        job_id: &ObjectId,
+        lock_token: &str,
         media_oid: &ObjectId,
-        provider: &str,
-        pipeline_version: &str,
-        model_version: Option<&str>,
-        source_fingerprint: &str,
-        labels: Array,
-        categories: Vec<String>,
-    ) -> anyhow::Result<()> {
-        let mut doc_body = doc! {
-            "mediaId": media_oid,
-            "provider": provider,
-            "pipelineVersion": pipeline_version,
-            "modelVersion": model_version,
-            "sourceFingerprint": source_fingerprint,
-            "labels": labels,
-            "categories": categories,
-            "classifiedAt": BsonDateTime::now(),
-        };
-        // Keep original createdAt on upsert via $setOnInsert equivalent.
-        doc_body.remove("mediaId");
-
-        let _ = self
-            .classifications
-            .update_one(
-                doc! { "mediaId": media_oid },
-                doc! {
-                    "$set": doc_body,
-                    "$setOnInsert": { "mediaId": media_oid }
-                },
-            )
-            .upsert(true)
-            .await?;
-        Ok(())
+        record: &ClassificationCommit,
+    ) -> anyhow::Result<MediaCommitOutcome> {
+        self.commit_fenced(
+            job_id,
+            lock_token,
+            media_oid,
+            FencedWrite::Classification { record },
+        )
+        .await
     }
+
+    /// Verify the lease and apply one externally visible write in the same
+    /// MongoDB transaction.
+    ///
+    /// The fence is an `update_one` on the job document rather than a read:
+    /// its `matched_count` proves `status: PROCESSING`, the exact token, and an
+    /// unexpired lease, and the write participates in transaction conflict
+    /// detection so a concurrent reaper or token replacement cannot slip
+    /// between the check and the media write.
+    async fn commit_fenced(
+        &self,
+        job_id: &ObjectId,
+        lock_token: &str,
+        media_oid: &ObjectId,
+        write: FencedWrite<'_>,
+    ) -> anyhow::Result<MediaCommitOutcome> {
+        for attempt in 1..=MAX_FENCED_COMMIT_ATTEMPTS {
+            let mut session = self.jobs.client().start_session().await?;
+            session.start_transaction().await?;
+
+            let owned = match self.fence_lease(&mut session, job_id, lock_token).await {
+                Ok(owned) => owned,
+                Err(error) => {
+                    let _ = session.abort_transaction().await;
+                    if is_transient_transaction_error(&error)
+                        && attempt < MAX_FENCED_COMMIT_ATTEMPTS
+                    {
+                        continue;
+                    }
+                    return Err(error.into());
+                }
+            };
+
+            if !owned {
+                let _ = session.abort_transaction().await;
+                tracing::warn!(
+                    job = %job_id,
+                    "fenced commit rejected: lease lost; aborting transaction"
+                );
+                return Ok(MediaCommitOutcome::LeaseLost);
+            }
+
+            let result = match &write {
+                FencedWrite::MediaProcessed {
+                    variant_keys,
+                    checksum,
+                } => {
+                    let mut sets = doc! {
+                        "processingStatus": "DONE",
+                        "checksum": *checksum,
+                    };
+                    for (name, key) in *variant_keys {
+                        sets.insert(format!("variants.{name}"), key.as_str());
+                    }
+                    self.media
+                        .update_one(doc! { "_id": media_oid }, doc! { "$set": sets })
+                        .session(&mut session)
+                        .await
+                }
+                FencedWrite::Moderation { status, reason } => {
+                    self.media
+                        .update_one(
+                            doc! { "_id": media_oid },
+                            doc! {
+                                "$set": {
+                                    "moderationStatus": *status,
+                                    "lastModerationReason": *reason,
+                                }
+                            },
+                        )
+                        .session(&mut session)
+                        .await
+                }
+                FencedWrite::Classification { record } => {
+                    let classification = self
+                        .classifications
+                        .update_one(
+                            doc! { "mediaId": media_oid },
+                            doc! {
+                                "$set": {
+                                    "provider": record.provider.as_str(),
+                                    "pipelineVersion": record.pipeline_version.as_str(),
+                                    "modelVersion": record.model_version.as_deref(),
+                                    "sourceFingerprint": record.source_fingerprint.as_str(),
+                                    "labels": record.labels.clone(),
+                                    "categories": record.categories.clone(),
+                                    "classifiedAt": BsonDateTime::now(),
+                                },
+                                "$setOnInsert": { "mediaId": media_oid },
+                            },
+                        )
+                        .upsert(true)
+                        .session(&mut session)
+                        .await;
+
+                    match classification {
+                        Ok(_) => self
+                            .media
+                            .update_one(
+                                doc! { "_id": media_oid },
+                                doc! {
+                                    "$set": {
+                                        "moderationStatus": record.moderation_status.as_str(),
+                                        "lastModerationReason": record.moderation_reason.as_str(),
+                                    }
+                                },
+                            )
+                            .session(&mut session)
+                            .await,
+                        Err(error) => Err(error),
+                    }
+                }
+            };
+
+            match result {
+                Ok(update) if update.matched_count == 1 => {
+                    match session.commit_transaction().await {
+                        Ok(()) => return Ok(MediaCommitOutcome::Committed),
+                        Err(error)
+                            if is_retryable_commit_error(&error)
+                                && attempt < MAX_FENCED_COMMIT_ATTEMPTS =>
+                        {
+                            let _ = session.abort_transaction().await;
+                            continue;
+                        }
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                Ok(_) => {
+                    let _ = session.abort_transaction().await;
+                    anyhow::bail!(
+                        "media {media_oid} not found while committing fenced job {job_id}"
+                    );
+                }
+                Err(error) => {
+                    let _ = session.abort_transaction().await;
+                    if is_transient_transaction_error(&error)
+                        && attempt < MAX_FENCED_COMMIT_ATTEMPTS
+                    {
+                        continue;
+                    }
+                    return Err(error.into());
+                }
+            }
+        }
+
+        anyhow::bail!("fenced commit retries exhausted for job {job_id}")
+    }
+
+    /// Atomically prove ownership by renewing the lease inside the caller's
+    /// transaction. Returns `false` when the filter no longer matches.
+    async fn fence_lease(
+        &self,
+        session: &mut ClientSession,
+        job_id: &ObjectId,
+        lock_token: &str,
+    ) -> mongodb::error::Result<bool> {
+        let now = BsonDateTime::now();
+        let lease_until = BsonDateTime::from_millis(
+            now.timestamp_millis()
+                .saturating_add(self.config.lease_seconds.saturating_mul(1_000)),
+        );
+        let result = self
+            .jobs
+            .update_one(
+                doc! {
+                    "_id": job_id,
+                    "status": "PROCESSING",
+                    "lockToken": lock_token,
+                    "leaseExpiresAt": { "$gt": now },
+                },
+                doc! { "$set": { "leaseExpiresAt": lease_until } },
+            )
+            .session(&mut *session)
+            .await?;
+        Ok(result.matched_count == 1)
+    }
+}
+
+fn is_transient_transaction_error(error: &mongodb::error::Error) -> bool {
+    error.contains_label(mongodb::error::TRANSIENT_TRANSACTION_ERROR)
+}
+
+fn is_retryable_commit_error(error: &mongodb::error::Error) -> bool {
+    is_transient_transaction_error(error)
+        || error.contains_label(mongodb::error::UNKNOWN_TRANSACTION_COMMIT_RESULT)
 }
 
 /// Outcome of recording a failed execution, derived only from the retry flag
@@ -721,7 +943,6 @@ mod tests {
 /// Renewing well before expiry leaves room for at least two failed renewal
 /// attempts before ownership becomes ambiguous; callers should renew on this
 /// interval rather than waiting for `leaseExpiresAt`.
-#[allow(dead_code)] // Heartbeat scheduling lands with the worker integration.
 pub fn lease_renewal_interval_secs(lease_seconds: i64) -> u64 {
     (lease_seconds / 3).max(1) as u64
 }
